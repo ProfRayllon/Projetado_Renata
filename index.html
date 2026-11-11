@@ -134,6 +134,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   <h2>Armários</h2>
   <div class="sw" id="cabSw"></div>
   <p class="note">Aplica aos módulos existentes e aos novos, mantendo as molduras amadeiradas.</p>
+  <div class="toggle">Ripado lateral da torre<button class="sw-t" id="ripadoT" aria-label="Ripado lateral da torre"></button></div>
   <h2>Bancada</h2>
   <div class="sw" id="stoneSw"></div>
   <h2>Puxadores</h2>
@@ -584,7 +585,8 @@ objs.geladeira=fridge(); objs.geladeira.rotation.y=Math.PI/2; objs.geladeira.pos
 
 const CX0=.12,CX1=.78,CZ1=Z0+.70,CM=(CX0+CX1)/2,BK=Z0+.05;
 B(CX0,CX0+.018,0,2.55,Z0,CZ1,M.cab,A,{pick:'armarios'});
-for(let z=Z0+.02;z+.028<=CZ1-.004;z+=.04) B(CX0-.02,CX0,.08,2.55,z,z+.028,M.wood,A,{pick:'armarios'});
+const ripadoTorre=new THREE.Group(); A.add(ripadoTorre);
+for(let z=Z0+.02;z+.028<=CZ1-.004;z+=.04) B(CX0-.02,CX0,.08,2.55,z,z+.028,M.wood,ripadoTorre,{pick:'armarios'});
 B(CX1-.018,CX1,0,2.55,Z0,CZ1,M.cab,A);
 B(CX0,CX1,0,2.55,BK,BK+.015,M.cab,A);
 B(CX0+.018,CX1-.018,0,.08,BK,CZ1-.04,M.plinth,A);
@@ -748,7 +750,7 @@ const TEMPS={quente:{n:'Quente 3000K',c:'#ffd2a3'},neutra:{n:'Neutra 4000K',c:'#
 
 // ---------- state ----------
 const KEY='cozinha3d:v1';
-const DEF={ver:2,mode:'after',fin:{lavaseca:'branco',micro:'inox',fryer:'bege',purificador:'preto',forno:'inox',geladeira:'inox'},cab:'fendi',stone:'saogabriel',handle:'cava',temp:'neutra',led:true,decor:true};
+const DEF={ver:2,mode:'after',fin:{lavaseca:'branco',micro:'inox',fryer:'bege',purificador:'preto',forno:'inox',geladeira:'inox'},cab:'fendi',stone:'saogabriel',handle:'cava',temp:'neutra',led:true,decor:true,ripado:true};
 let S; try{ S=Object.assign({},DEF,JSON.parse(localStorage.getItem(KEY)||'{}')); S.fin=Object.assign({},DEF.fin,S.fin); }catch(e){ S=structuredClone(DEF); }
 const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
 const CABS={fendi:{n:'Fendi (atual)',c:'#d6cdbd'},offwhite:{n:'Off-white',c:'#ebe7de'},salvia:{n:'Verde sálvia',c:'#a7af9a'},grafite:{n:'Grafite',c:'#4d4c49'}};
@@ -764,6 +766,7 @@ const APPS=[
 function apply(){
   const after=S.mode==='after';
   G.after.visible=after; G.before.visible=!after; G.decor.visible=after&&S.decor;
+  ripadoTorre.visible=after&&S.ripado;
   S.ver=2; const v2=true;
   spiceG.visible=!v2; v2G.visible=v2;
   v2G.visible=false; v3G.visible=true;
@@ -826,13 +829,15 @@ function renderUI(){
   fill('#stoneSw',STONES,'stone',v=>v.sw);
   fill('#handleSw',HANDLES,'handle',v=>v.c||'linear-gradient(#d6cdbd 0 40%,#8b8579 40% 60%,#d6cdbd 60%)');
   fill('#tempSw',TEMPS,'temp',v=>v.c);
-  $('#ledT').classList.toggle('on',S.led); $('#decorT').classList.toggle('on',S.decor);
+  $('#ledT').classList.toggle('on',S.led); $('#decorT').classList.toggle('on',S.decor); $('#ripadoT').classList.toggle('on',S.ripado);
   $('#decorT').parentElement.classList.toggle('disabled',S.mode!=='after');
+  $('#ripadoT').parentElement.classList.toggle('disabled',S.mode!=='after');
   pinEls.forEach(p=>p.el.hidden=S.mode!=='after');
 }
 document.querySelectorAll('#mode button').forEach(b=>b.onclick=()=>{ S.mode=b.dataset.mode; if(S.mode==='before') closeInfo(); apply(); });
 $('#ledT').onclick=()=>{S.led=!S.led;apply();};
 $('#decorT').onclick=()=>{S.decor=!S.decor;apply();};
+$('#ripadoT').onclick=()=>{S.ripado=!S.ripado;apply();};
 $('#panelToggle').onclick=()=>$('#panel').classList.toggle('open');
 
 // ---------- info & selection ----------
