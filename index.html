@@ -759,11 +759,12 @@ const TEMPS={quente:{n:'Quente 3000K',c:'#ffd2a3'},neutra:{n:'Neutra 4000K',c:'#
 
 // ---------- state ----------
 const KEY='cozinha3d:v1';
-const DEF={ver:2,mode:'after',fin:{lavaseca:'branco',micro:'inox',fryer:'bege',purificador:'preto',forno:'inox',geladeira:'inox'},cab:'fendi',stone:'saogabriel',handle:'cava',temp:'neutra',led:true,decor:true,lateral:'ripado',fundoRipado:'claro'};
+const DEF={presetVersion:2,ver:2,mode:'after',fin:{lavaseca:'inox',micro:'inox',fryer:'inox',purificador:'inox',forno:'inox',geladeira:'inox'},cab:'fendi',stone:'saogabriel',handle:'cava',temp:'neutra',led:true,decor:true,lateral:'lisa',fundoRipado:'claro'};
 let S; try{
   const saved=JSON.parse(localStorage.getItem(KEY)||'{}');
   S=Object.assign({},DEF,saved); S.fin=Object.assign({},DEF.fin,S.fin);
   if(saved.lateral===undefined&&saved.ripado===false) S.lateral='lisa';
+  if(saved.presetVersion!==DEF.presetVersion){ S.lateral='lisa'; Object.keys(S.fin).forEach(k=>S.fin[k]='inox'); S.presetVersion=DEF.presetVersion; }
   delete S.ripado;
 }catch(e){ S=structuredClone(DEF); }
 const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
