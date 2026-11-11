@@ -138,6 +138,10 @@ button{font:inherit;color:inherit;cursor:pointer}
     <div class="row"><b>Lateral da torre</b><span>Acabamento</span></div>
     <div class="sw" id="lateralSw"></div>
   </div>
+  <div class="app" id="fundoRipadoOpts">
+    <div class="row"><b>Fundo do ripado frontal</b><span>Cor</span></div>
+    <div class="sw" id="fundoRipadoSw"></div>
+  </div>
   <h2>Bancada</h2>
   <div class="sw" id="stoneSw"></div>
   <h2>Puxadores</h2>
@@ -623,10 +627,11 @@ const zone=new THREE.Group(); A.add(zone);
 tagPick(zone,'livre'); objs.livre=zone;
 // decorative column covering the pipes on the right wall (in front of the pillar)
 const shaft=new THREE.Group(); A.add(shaft); const PZ=Z0+.25;
-B(CX1,X1,1.04,H,CZ1-.03,CZ1-.018,M.cab,shaft);
+const fundosRipado=[];
+fundosRipado.push(B(CX1,X1,1.04,H,CZ1-.03,CZ1-.018,M.cab,shaft));
 for(let x=CX1+.008;x+.028<=X1-.002;x+=.04) B(x,x+.028,1.042,H,CZ1-.018,CZ1+.002,M.wood,shaft);
 const insp=new THREE.Group(); insp.position.set(0,0,CZ1); shaft.add(insp);
-B(CX1,X1,0,1.04,-.03,-.018,M.cab,insp);
+fundosRipado.push(B(CX1,X1,0,1.04,-.03,-.018,M.cab,insp));
 for(let x=CX1+.008;x+.028<=X1-.002;x+=.04) B(x,x+.028,0,1.04,-.018,.002,M.wood,insp);
 tagPick(shaft,'shaft'); objs.shaft=shaft;
 // left niche closed with door
@@ -754,7 +759,7 @@ const TEMPS={quente:{n:'Quente 3000K',c:'#ffd2a3'},neutra:{n:'Neutra 4000K',c:'#
 
 // ---------- state ----------
 const KEY='cozinha3d:v1';
-const DEF={ver:2,mode:'after',fin:{lavaseca:'branco',micro:'inox',fryer:'bege',purificador:'preto',forno:'inox',geladeira:'inox'},cab:'fendi',stone:'saogabriel',handle:'cava',temp:'neutra',led:true,decor:true,lateral:'ripado'};
+const DEF={ver:2,mode:'after',fin:{lavaseca:'branco',micro:'inox',fryer:'bege',purificador:'preto',forno:'inox',geladeira:'inox'},cab:'fendi',stone:'saogabriel',handle:'cava',temp:'neutra',led:true,decor:true,lateral:'ripado',fundoRipado:'claro'};
 let S; try{
   const saved=JSON.parse(localStorage.getItem(KEY)||'{}');
   S=Object.assign({},DEF,saved); S.fin=Object.assign({},DEF.fin,S.fin);
@@ -764,6 +769,7 @@ let S; try{
 const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
 const CABS={fendi:{n:'Fendi (atual)',c:'#d6cdbd'},offwhite:{n:'Off-white',c:'#ebe7de'},salvia:{n:'Verde sálvia',c:'#a7af9a'},grafite:{n:'Grafite',c:'#4d4c49'}};
 const LATERAIS={ripado:{n:'Ripado',c:'repeating-linear-gradient(90deg,#a56d3d 0 5px,#e7e1d7 5px 8px)'},lisa:{n:'Lisa',c:'cab'},madeira:{n:'Marrom madeira',c:'#a56d3d'}};
+const FUNDOS_RIPADO={claro:{n:'Claro (atual)',c:'cab'},marrom:{n:'Marrom',c:'#a56d3d'}};
 const HANDLES={cava:{n:'Perfil cava'},preta:{n:'Barra preta',c:'#1c1c1c',m:.4,r:.35},dourada:{n:'Barra dourada',c:'#c49a55',m:.9,r:.28},inox:{n:'Barra inox',c:'#c8cbcd',m:.95,r:.22}};
 const APPS=[
   {k:'geladeira',n:'Geladeira',img:'geladeira',v:[['branco','Branca'],['inox','Inox'],['preto','Preta']]},
@@ -778,6 +784,7 @@ function apply(){
   G.after.visible=after; G.before.visible=!after; G.decor.visible=after&&S.decor;
   ripadoTorre.visible=after&&S.lateral==='ripado';
   lateralTorre.material=S.lateral==='madeira'?M.wood:M.cab;
+  fundosRipado.forEach(fundo=>fundo.material=S.fundoRipado==='marrom'?M.wood:M.cab);
   S.ver=2; const v2=true;
   spiceG.visible=!v2; v2G.visible=v2;
   v2G.visible=false; v3G.visible=true;
@@ -838,12 +845,14 @@ function renderUI(){
   const fill=(id,obj,key,colorFn)=>{ const el=$(id); el.innerHTML=''; Object.entries(obj).forEach(([k,v])=>el.append(chip(v.n,S[key]===k,()=>{S[key]=k;apply();},colorFn&&colorFn(v)))); };
   fill('#cabSw',CABS,'cab',v=>v.c);
   fill('#lateralSw',LATERAIS,'lateral',v=>v.c==='cab'?CABS[S.cab].c:v.c);
+  fill('#fundoRipadoSw',FUNDOS_RIPADO,'fundoRipado',v=>v.c==='cab'?CABS[S.cab].c:v.c);
   fill('#stoneSw',STONES,'stone',v=>v.sw);
   fill('#handleSw',HANDLES,'handle',v=>v.c||'linear-gradient(#d6cdbd 0 40%,#8b8579 40% 60%,#d6cdbd 60%)');
   fill('#tempSw',TEMPS,'temp',v=>v.c);
   $('#ledT').classList.toggle('on',S.led); $('#decorT').classList.toggle('on',S.decor);
   $('#decorT').parentElement.classList.toggle('disabled',S.mode!=='after');
   $('#lateralOpts').classList.toggle('disabled',S.mode!=='after');
+  $('#fundoRipadoOpts').classList.toggle('disabled',S.mode!=='after');
   pinEls.forEach(p=>p.el.hidden=S.mode!=='after');
 }
 document.querySelectorAll('#mode button').forEach(b=>b.onclick=()=>{ S.mode=b.dataset.mode; if(S.mode==='before') closeInfo(); apply(); });
@@ -858,7 +867,7 @@ const INFO={
   purificador:{k:'Torre · nicho de eletroportáteis',t:'Purificador de água',p:'Ao lado da air fryer, perto do ponto de água da parede do fundo. A ligação passa por trás do painel de fundo da torre.',cam:[[.05,1.45,.15],[.3,1.15,-1.25]]},
   micro:{k:'Torre · altura dos olhos',t:'Micro-ondas',p:'No nicho alto da torre, a cerca de 1,85 m do piso, com porta até o teto acima dele. O nicho antigo sob a bancada recebe porta para produtos de limpeza.',cam:[[.2,1.9,.25],[CM,2.0,-1.2]]},
   temperos:{k:'Torre · nicho decorativo',t:'Temperos e ervas',p:'Onde estava o micro-ondas: porta-temperos em madeira, potes e vasos de ervas, com fita LED na parte de cima do nicho.',cam:[[.2,1.6,.15],[CM,1.55,-1.2]]},
-  shaft:{k:'Canto direito · frente do pilar',t:'Coluna decorativa',p:'Ocupa o vão entre a máquina e a parede da direita, na frente do pilar, onde estão os canos. Embaixo, painel ripado removível para manutenção. Acima, o ripado sobe fixo até o teto.',act:'Abrir inspeção',cam:[[.3,1.3,.2],[.86,.9,-1.25]]},
+  shaft:{k:'Canto direito · frente do pilar',t:'Coluna decorativa',p:'Ocupa o vão entre a máquina e a parede da direita, na frente do pilar, onde estão os canos. Embaixo, painel ripado removível para manutenção. Acima, o ripado sobe fixo até o teto. Compare o fundo claro ou marrom no painel.',act:'Abrir inspeção',cam:[[.3,1.3,.2],[.86,.9,-1.25]]},
   livre:{k:'Área de serviço',t:'Área livre do tanque',p:'Cerca de 45 cm livres na frente do tanque até a parede do fundo, para usar a área de serviço. Acima não há nada, para ninguém bater a cabeça.',cam:[[.45,1.7,.6],[-.2,.6,-1.4]]},
   forno:{k:'Sob o cooktop',t:'Forno embutido',p:'No nicho com moldura amadeirada embaixo da bancada, onde antes ficava o micro-ondas. Modelo compacto de 45 cm de altura.',cam:[[.5,.9,.4],[X0+.4,.55,-.32]]},
   geladeira:{k:'Fim da bancada',t:'Geladeira',p:'No fim do armário, junto à entrada. Acima dela, nichos em madeira como os da sala e armário até o teto.',cam:[[.6,1.4,2.6],[X0+.36,1.0,1.3]]},
