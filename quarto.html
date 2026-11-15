@@ -91,6 +91,10 @@ input.txt:focus{outline:none;border-color:var(--ink)}
 #sel .btns{margin-top:10px}
 #sel label.rng{display:flex;align-items:center;gap:10px;font-size:12.5px;margin-top:10px}
 #sel label.rng input{flex:1;accent-color:var(--ink)}
+.sizeRow{display:flex;align-items:center;gap:10px;font-size:12.5px;margin-top:10px}
+.sizeRow .lbl{width:52px}
+.sizeRow input{flex:1;accent-color:var(--ink);min-width:0}
+.sizeRow .val{width:52px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
 #ov{position:fixed;inset:0;pointer-events:none;overflow:hidden}
 .tag{position:absolute;transform:translate(-50%,-50%);font-size:11px;font-weight:600;background:rgba(250,248,244,.92);padding:2px 6px;border-radius:5px;white-space:nowrap;border:1px solid var(--line)}
 .dim{position:absolute;transform:translate(-50%,-50%);background:var(--accent);color:#fff;font-size:11px;font-weight:600;padding:2px 6px;border-radius:5px;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -176,6 +180,10 @@ input.txt:focus{outline:none;border-color:var(--ink)}
   <p class="note" id="artNote" hidden></p>
   <div class="sub">Persiana rolô da janela</div>
   <div class="sw" id="blindSw"></div>
+  <div class="sub">Painel ripado atrás da TV</div>
+  <div class="sw" id="panelSw"></div>
+  <div id="panelSize"></div>
+  <p class="note" id="panelNote" hidden></p>
   <div style="margin-top:12px" id="toggles"></div>
 
   <h2>Como usar</h2>
@@ -644,7 +652,7 @@ function presetItems(key,keepFrom){
   return it;
 }
 function freshState(){ return {items:presetItems('atual'),walls:{A:WHITE,B:WHITE,C:WHITE,D:WHITE},
-  opt:{fabric:'bege',top:'freijo',throw:true,door:true,blind:'meia',art:'vintage',decor:true,labels:true,magnet:true}}; }
+  opt:{fabric:'bege',top:'freijo',throw:true,door:true,blind:'meia',art:'vintage',panel:'freijo',panelW:1.2,panelH:2.45,decor:true,labels:true,magnet:true}}; }
 let S=freshState(), sel=null, wallTarget='all';
 
 // ---------- geometry of placement ----------
@@ -758,6 +766,10 @@ function rebuild(id){
 function place(id){
   const st=S.items[id], g=IG[id], p=pose(id,st);
   g.position.set(p.x,DEF[id].wall?st.yb:0,p.z); g.rotation.y=p.r*Math.PI/2; g.visible=!!st.on;
+  // itens de parede ficam na frente do painel ripado quando estão sobre ele
+  if(DEF[id].wall&&panelInfo.ok&&st.wall===panelInfo.wall&&Math.abs(st.s-panelInfo.c)<panelInfo.w/2+DEF[id].w/2&&st.yb<panelInfo.h){
+    const th=p.r*Math.PI/2; g.position.x+=Math.sin(th)*PANEL_D; g.position.z+=Math.cos(th)*PANEL_D;
+  }
 }
 function applyLook(){
   for(const k of 'ABCD') WM[k].color.set(S.walls[k]);
@@ -810,6 +822,77 @@ function updateArt(){
   for(const k of ORDER){ if(!S.items[k].on||DEF[k].rug) continue; if(overlap(box,worldBox(k))){ artInfo.msg='O quadro bateria '+(DEF[k].name==='TV'?'na TV':'em '+DEF[k].name.toLowerCase())+'. Mude o sofá ou o item de lugar.'; return; } }
   const [px,pz]=WALLS[w].pos(s); artG.position.set(px,a.yb,pz); artG.rotation.y=WALLS[w].r*Math.PI/2;
   artInfo={ok:true,wall:w,msg:''};
+}
+
+// ---------- painel ripado atrás da TV ----------
+const PANEL_D=.026, PITCH=.045, SLAT=.03;
+const PANEL_FIN={
+  freijo:['Freijó','#b98450',()=>M.wood],
+  nogueira:['Nogueira','#6e4a2e',()=>M.nogueira],
+  preto:['Preto','#1f1f1f',()=>M.ripaPreta],
+  branco:['Branco','#efede7',()=>M.ripaBranca],
+};
+M.nogueira=std('ripa_nogueira',{map:woodTex,color:'#8a6448',roughness:.55}); M.nogueira.userData.uv=[.9,.45];
+M.ripaPreta=std('ripa_preta',{color:'#1f1f1f',roughness:.55});
+M.ripaBranca=std('ripa_branca',{color:'#efede7',roughness:.55});
+M.ripaFundo=std('fundo_ripado',{color:'#26221f',roughness:.8});
+const panelG=new THREE.Group(); scene.add(panelG);
+let panelInfo={ok:false,msg:''}, panelKey='';
+function panelLimits(w,c,want){
+  // obstáculos ao longo da parede: aberturas, ar-condicionado e móveis altos encostados nela
+  const obs=[];
+  if(w==='A') obs.push({a:WIN.x0,b:WIN.x1,y0:WIN.y0,n:'a janela'});
+  if(w==='B') obs.push({a:DOOR.x0-.06,b:DOOR.x1+.06,y0:0,n:'a porta'});
+  if(w==='C') obs.push({a:AC.z0,b:AC.z1,y0:AC.y0,n:'o ar-condicionado'});
+  for(const k of ORDER){
+    const st=S.items[k]; if(!st.on||DEF[k].wall||DEF[k].rug||DEF[k].h<1.2) continue;
+    const b=worldBox(k), m=.05;
+    const touch=w==='A'?b.z0<Z0+m:w==='B'?b.z1>Z1-m:w==='C'?b.x0<X0+m:b.x1>X1-m;
+    if(!touch) continue;
+    const horiz=w==='A'||w==='B'; obs.push({a:horiz?b.x0:b.z0,b:horiz?b.x1:b.z1,y0:0,n:k==='shelf'?'a estante':DEF[k].name.toLowerCase()});
+  }
+  const half=WALLS[w].len/2, tvTop=S.items.tv.yb+DEF.tv.h;
+  let lo=-half, hi=half, h=want.h, loN='a parede', hiN='a parede', hN='';
+  for(const o of obs){
+    if(o.y0>tvTop+.05){ if(o.b>c-want.w/2&&o.a<c+want.w/2&&o.y0-.01<h){ h=o.y0-.01; hN=o.n; } continue; }
+    if(o.b<=c+.001){ if(o.b>lo){ lo=o.b; loN=o.n; } }
+    else if(o.a>=c-.001){ if(o.a<hi){ hi=o.a; hiN=o.n; } }
+  }
+  let a=c-want.w/2, b=c+want.w/2;
+  if(a<lo){ b=Math.min(hi,b+(lo-a)); a=lo; }
+  if(b>hi){ a=Math.max(lo,a-(b-hi)); b=hi; }
+  a=Math.max(a,lo); b=Math.min(b,hi);
+  const limits=[]; if(b-a<want.w-.01) limits.push(a<=lo+.001?loN:hiN, b>=hi-.001?hiN:loN);
+  return {a,b,h,hN,limits:[...new Set(limits)]};
+}
+function updatePanel(){
+  const fin=PANEL_FIN[S.opt.panel], tv=S.items.tv;
+  const prev=panelInfo; panelInfo={ok:false,msg:''};
+  if(fin&&!tv.on) panelInfo.msg='O painel acompanha a TV — coloque a TV no quarto.';
+  if(fin&&tv.on){
+    const L=panelLimits(tv.wall,tv.s,{w:S.opt.panelW,h:S.opt.panelH});
+    const w=L.b-L.a, c=(L.a+L.b)/2;
+    if(w<.3){ panelInfo.msg='Não há parede livre para o painel ao redor da TV.'; }
+    else{
+      panelInfo={ok:true,wall:tv.wall,c,w,h:L.h,msg:''};
+      const notes=[];
+      const de=n=>(n.startsWith('o ')?'do ':n.startsWith('a ')?'da ':'de ')+n.replace(/^(o|a) /,'');
+      if(w<S.opt.panelW-.01) notes.push('largura limitada a '+fmt(w)+' m por causa '+L.limits.map(de).join(' e '));
+      if(L.h<S.opt.panelH-.01) notes.push('altura limitada a '+fmt(L.h)+' m por causa '+de(L.hN));
+      if(notes.length) panelInfo.msg=notes.join('; ').replace(/^./,m=>m.toUpperCase())+'.';
+      const key=[S.opt.panel,w.toFixed(3),L.h.toFixed(3)].join('|');
+      if(key!==panelKey){
+        panelKey=key; panelG.traverse(o=>{ if(o.isMesh) o.geometry.dispose(); }); panelG.clear();
+        const mat=fin[2](), hw=w/2;
+        B(-hw,hw,0,L.h,0,.006,M.ripaFundo,panelG);
+        const n=Math.max(1,Math.floor((w-SLAT)/PITCH)+1), x0=-((n-1)*PITCH)/2;
+        for(let i=0;i<n;i++){ const x=x0+i*PITCH; B(x-SLAT/2,x+SLAT/2,0,L.h,.006,PANEL_D,mat,panelG); }
+      }
+      const [px,pz]=WALLS[tv.wall].pos(c); panelG.position.set(px,0,pz); panelG.rotation.y=WALLS[tv.wall].r*Math.PI/2;
+    }
+  }
+  if(prev.ok!==panelInfo.ok||prev.wall!==panelInfo.wall||prev.c!==panelInfo.c||prev.w!==panelInfo.w||prev.h!==panelInfo.h){ place('tv'); place('guitarW'); }
+  const pn=document.getElementById('panelNote'); if(pn){ pn.textContent=panelInfo.msg; pn.hidden=!panelInfo.msg; }
 }
 
 // ---------- selection visuals ----------
@@ -896,7 +979,10 @@ function sanitize(o){
   if(o.walls) for(const k of 'ABCD') if(/^#[0-9a-f]{6}$/i.test(o.walls[k]||'')) s.walls[k]=o.walls[k];
   if(o.opt){ for(const k of ['throw','door','decor','labels','magnet']) if(typeof o.opt[k]==='boolean') s.opt[k]=o.opt[k];
     if(FABRICS[o.opt.fabric]) s.opt.fabric=o.opt.fabric; if(TOPS[o.opt.top]) s.opt.top=o.opt.top;
-    if(BLIND_DROP[o.opt.blind]) s.opt.blind=o.opt.blind; if(o.opt.art==='none'||ART[o.opt.art]) s.opt.art=o.opt.art; }
+    if(BLIND_DROP[o.opt.blind]) s.opt.blind=o.opt.blind;
+    if(o.opt.panel==='none'||PANEL_FIN[o.opt.panel]) s.opt.panel=o.opt.panel;
+    if(typeof o.opt.panelW==='number'&&o.opt.panelW>=.4&&o.opt.panelW<=L) s.opt.panelW=o.opt.panelW;
+    if(typeof o.opt.panelH==='number'&&o.opt.panelH>=.8&&o.opt.panelH<=H) s.opt.panelH=o.opt.panelH; if(o.opt.art==='none'||ART[o.opt.art]) s.opt.art=o.opt.art; }
   return s;
 }
 function fixConflicts(){
@@ -1038,6 +1124,25 @@ function renderPanel(){
   const an=$('#artNote'); an.textContent=artInfo.msg; an.hidden=!artInfo.msg;
   const bs=$('#blindSw'); bs.innerHTML='';
   for(const [k,l] of [['aberta','Enrolada'],['meia','Meio'],['fechada','Baixada']]) bs.appendChild(chip(l,null,S.opt.blind===k,()=>setOpt('blind',k),'txt'));
+  const ps2=$('#panelSw'); ps2.innerHTML='';
+  ps2.appendChild(chip('Sem painel',null,S.opt.panel==='none',()=>setOpt('panel','none'),'txt'));
+  for(const k in PANEL_FIN) ps2.appendChild(chip(PANEL_FIN[k][0],PANEL_FIN[k][1],S.opt.panel===k,()=>setOpt('panel',k)));
+  const pz=$('#panelSize'); pz.innerHTML='';
+  if(S.opt.panel!=='none'){
+    const tvWall=S.items.tv.wall, maxW=WALLS[tvWall].len;
+    for(const [k,l,mn,mx] of [['panelW','Largura',.6,maxW],['panelH','Altura',1.0,H]]){
+      const lb=document.createElement('label'); lb.className='rng sizeRow';
+      const t=document.createElement('span'); t.className='lbl'; t.textContent=l;
+      const v=document.createElement('b'); v.className='val';
+      const r=document.createElement('input'); r.type='range'; r.min=mn; r.max=mx; r.step=.05; r.value=Math.min(mx,S.opt[k]);
+      const show=()=>{ v.textContent=fmt(+r.value)+' m'; };
+      let before=null;
+      r.oninput=()=>{ before??=snapshot(); S.opt[k]=+r.value; show(); updatePanel(); updateArt(); };
+      r.onchange=()=>{ commit(before); before=null; };
+      show(); lb.append(t,r,v); pz.appendChild(lb);
+    }
+  }
+  const pn=$('#panelNote'); pn.textContent=panelInfo.msg; pn.hidden=!panelInfo.msg;
   const tg=$('#toggles'); tg.innerHTML='';
   const T=[['Sofá aberto (cama)',()=>S.items.sofa.open,toggleOpen],
     ['Manta sobre o sofá',()=>S.opt.throw,()=>optToggle('throw',['sofa'])],
@@ -1086,8 +1191,8 @@ function updateMeta(){
   let used=0; for(const id of ORDER){ const s=S.items[id]; if(!s.on||DEF[id].rug||DEF[id].wall||id==='chair') continue; const b=worldBox(id); used+=(b.x1-b.x0)*(b.z1-b.z0); }
   $('#meta').innerHTML=`${fmt(W)} × ${fmt(L)} m · pé-direito ${fmt(H)} m · ${fmt(W*L)} m² · piso livre <b>≈ ${fmt(W*L-used,1)} m²</b>`;
 }
-function refresh(){ updateArt(); updateSelVisuals(); renderSel(); renderPanel(); updateMeta(); }
-function light(){ updateArt(); updateSelVisuals(); renderSel(); updateMeta(); }
+function refresh(){ updatePanel(); updateArt(); updateSelVisuals(); renderSel(); renderPanel(); updateMeta(); }
+function light(){ updatePanel(); updateArt(); updateSelVisuals(); renderSel(); updateMeta(); }
 
 $('#sel .x').onclick=()=>select(null);
 $('#undoB').onclick=()=>{ if(!undoStack.length) return; restore(undoStack.pop()); save(); refresh(); };
@@ -1234,6 +1339,7 @@ function loop(){
   const p=camera.position;
   M.sky.visible=controls.getPolarAngle()>.5;
   artG.visible=artInfo.ok&&GW[artInfo.wall].visible;
+  panelG.visible=panelInfo.ok&&GW[panelInfo.wall].visible;
   GW.A.visible=p.z>Z0-.02; GW.B.visible=p.z<Z1+.02; GW.C.visible=p.x>X0-.02; GW.D.visible=p.x<X1+.02;
   renderer.render(scene,camera);
   drawOverlay();
