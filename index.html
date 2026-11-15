@@ -39,8 +39,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .seg button{border:0;background:transparent;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:500;white-space:nowrap}
 .seg button:hover{background:#efebe4}
 .seg button.on{background:var(--ink);color:#fff}
-#mode{position:fixed;top:100px;left:20px}
-#ver{position:fixed;top:148px;left:20px}
+#mode{position:fixed;top:148px;left:20px}
+#ver{position:fixed;top:196px;left:20px}
 #views{position:fixed;bottom:18px;left:calc((100% - 336px)/2);transform:translateX(-50%);max-width:calc(100% - 360px);overflow-x:auto;scrollbar-width:none}
 #views::-webkit-scrollbar{display:none}
 @media (max-width:1100px){#views button{padding:7px 10px;font-size:12.5px}}
@@ -93,12 +93,17 @@ button{font:inherit;color:inherit;cursor:pointer}
   #views{max-width:calc(100% - 24px)}
   #brand h1{font-size:24px}
 }
+#rooms{display:inline-flex;pointer-events:auto;margin-bottom:12px}
+#rooms a{display:block;padding:7px 16px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink);text-decoration:none;white-space:nowrap}
+#rooms a:hover{background:#efebe4;color:var(--ink)}
+#rooms a.on{background:var(--ink);color:#fff}
 </style>
 </head>
 <body>
 <canvas id="c" tabindex="0"></canvas>
 <div id="loading">Carregando ambiente…</div>
 <header id="brand">
+  <nav id="rooms" class="seg" aria-label="Ambiente"><a href="index.html" class="on" aria-current="page">Cozinha</a><a href="quarto.html">Quarto</a></nav>
   <div class="eyebrow">Proposta de interiores</div>
   <h1>Cozinha &amp; lavanderia</h1>
   <div class="meta">Medidas estimadas · 1,90 × 3,30 m · pé-direito 2,60 m</div>
@@ -154,8 +159,6 @@ button{font:inherit;color:inherit;cursor:pointer}
   </div>
   <h2>Dica</h2>
   <p class="note">Clique nos números ou direto nos objetos para ver os detalhes. Arraste para girar, role para zoom e use o botão direito para mover a vista.</p>
-  <h2>Outros ambientes</h2>
-  <p class="note"><a href="quarto.html">Quarto — planejador interativo →</a></p>
 </aside>
 
 <script type="module">

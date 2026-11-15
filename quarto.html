@@ -110,6 +110,10 @@ input.txt:focus{outline:none;border-color:var(--ink)}
   #brand h1{font-size:24px}
   #sel{left:12px;bottom:66px;width:calc(100% - 24px)}
 }
+#rooms{display:inline-flex;pointer-events:auto;margin-bottom:12px}
+#rooms a{display:block;padding:7px 16px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink);text-decoration:none;white-space:nowrap}
+#rooms a:hover{background:#efebe4;color:var(--ink)}
+#rooms a.on{background:var(--ink);color:#fff}
 </style>
 </head>
 <body>
@@ -117,7 +121,8 @@ input.txt:focus{outline:none;border-color:var(--ink)}
 <div id="loading">Carregando quarto…</div>
 <div id="ov"></div>
 <header id="brand">
-  <div class="eyebrow">Proposta de interiores · <a href="index.html">ver cozinha</a></div>
+  <nav id="rooms" class="seg" aria-label="Ambiente"><a href="index.html">Cozinha</a><a href="quarto.html" class="on" aria-current="page">Quarto</a></nav>
+  <div class="eyebrow">Proposta de interiores</div>
   <h1>Quarto — monte do seu jeito</h1>
   <div class="meta" id="meta"></div>
 </header>
