@@ -102,13 +102,23 @@ input.txt:focus{outline:none;border-color:var(--ink)}
 .room{position:absolute;transform:translate(-50%,-50%);font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
 #toast{position:fixed;top:18px;left:calc((100% - 336px)/2);transform:translate(-50%,-8px);background:rgba(36,33,29,.93);color:#fff;padding:9px 14px;border-radius:9px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:40;max-width:min(460px,calc(100% - 40px));text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
+#walkHint{position:fixed;top:66px;left:calc((100% - 336px)/2);transform:translateX(-50%);background:rgba(36,33,29,.88);color:#fff;font-size:12.5px;padding:7px 8px 7px 14px;border-radius:999px;white-space:nowrap;display:flex;align-items:center;gap:10px;z-index:12}
+#walkHint button{border:0;background:#fff;color:var(--ink);border-radius:999px;padding:4px 11px;font-size:12px;font-weight:600}
+#walkPad{position:fixed;left:20px;bottom:74px;display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:5px;z-index:12;touch-action:none}
+#walkPad button{border:1px solid var(--line);background:rgba(250,248,244,.95);border-radius:12px;font-size:17px;user-select:none;-webkit-user-select:none}
+#walkPad button:active{background:var(--ink);color:#fff}
+#sitBtn{position:fixed;bottom:74px;left:calc((100% - 336px)/2);transform:translateX(-50%);border:0;background:var(--accent);color:#fff;border-radius:999px;padding:11px 22px;font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(40,30,20,.25);z-index:12}
+#cross{position:fixed;left:calc((100% - 336px)/2);top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(255,255,255,.85);box-shadow:0 0 0 1px rgba(0,0,0,.25);pointer-events:none;z-index:11}
 [hidden]{display:none!important}
 #panelToggle{display:none}
 @media (max-width:860px){
   #panel{display:none;width:min(330px,calc(100% - 28px));z-index:20}
   #panel.open{display:block}
   #panelToggle{display:block;position:fixed;right:14px;top:18px;z-index:21;border:1px solid var(--line);background:var(--ink);color:#fff;border-radius:999px;padding:8px 14px;font-size:13px}
-  #views,#toast{left:50%}
+  #views,#toast,#walkHint,#sitBtn,#cross{left:50%}
+  #walkHint .full{display:none}
+  #sitBtn{bottom:178px}
+  #walkPad{bottom:66px;left:12px}
   #views{max-width:calc(100% - 24px)}
   #brand{max-width:calc(100% - 150px)}
   #brand h1{font-size:24px}
@@ -136,8 +146,16 @@ input.txt:focus{outline:none;border-color:var(--ink)}
   <button data-view="entrada">Da porta</button>
   <button data-view="sofa">Do sofá</button>
   <button data-view="janela">Parede da janela</button>
+  <button data-view="walk">Caminhar</button>
 </nav>
 <div id="toast"></div>
+<div id="walkHint" hidden><span><span class="full">W A S D ou setas para andar · arraste para olhar · E para sentar · </span>Esc sai</span><button id="walkExit">Sair</button></div>
+<div id="walkPad" hidden>
+  <span></span><button data-k="w" aria-label="Frente">↑</button><span></span>
+  <button data-k="a" aria-label="Esquerda">←</button><button data-k="s" aria-label="Trás">↓</button><button data-k="d" aria-label="Direita">→</button>
+</div>
+<button id="sitBtn" hidden></button>
+<div id="cross" hidden></div>
 <div id="sel" hidden>
   <div class="k">Selecionado</div>
   <h3></h3>
@@ -307,6 +325,7 @@ const M={
   tvBody:std('tv_traseira',{color:'#2b2d30',roughness:.6}),
   bezel:std('tv_moldura',{color:'#5b5f64',metalness:.6,roughness:.35}),
   screen:std('tela',{color:'#050607',roughness:.08,metalness:.25}),
+  laptopScreen:std('tela_notebook',{color:'#1d2836',emissive:'#7f9cc4',emissiveIntensity:.55,roughness:.2}),
   redLed:std('led',{color:'#ff2a2a',emissive:'#ff2a2a',emissiveIntensity:2}),
   spk:std('caixa_som',{color:'#151515',roughness:.6}),
   grille:std('grade_caixa',{map:grilleTex,roughness:.8}),
@@ -482,6 +501,7 @@ function buildDesk(g,st,o){
   if(o.decor){ // notebook + luminária de mesa leve
     B(-.18,.16,.75,.765,-.12,.12,M.bezel,g);
     const s=mk(new THREE.BoxGeometry(.34,.22,.008),M.tvBody,g,-.01,.86,-.13); s.rotation.x=-.25;
+    mk(new THREE.PlaneGeometry(.32,.2),M.laptopScreen,s,0,0,.0045,{cast:false});
     mk(new THREE.CylinderGeometry(.04,.035,.1,20),M.potB,g,.42,.80,-.15);
   }
 }
@@ -953,6 +973,7 @@ function toScreen(v,el){
   el.style.display=''; el.style.left=((tmp.x+1)/2*innerWidth)+'px'; el.style.top=((1-tmp.y)/2*innerHeight)+'px';
 }
 function drawOverlay(){
+  ov.style.display=walk?'none':''; if(walk) return;
   const plan=controls.getPolarAngle()<.5;
   for(const id of ORDER){
     const el=tagEl[id], st=S.items[id];
@@ -1233,7 +1254,7 @@ function viewDef(v){
 let tween=null;
 function flyTo([p,t,f=46],dur=1000){ tween={p0:camera.position.clone(),t0:controls.target.clone(),p1:V(...p),t1:V(...t),f0:camera.fov,f1:f,s:performance.now(),dur}; }
 function setViewBtn(v){ document.querySelectorAll('#views button').forEach(b=>b.classList.toggle('on',b.dataset.view===v)); }
-document.querySelectorAll('#views button').forEach(b=>b.onclick=()=>{ flyTo(viewDef(b.dataset.view)); setViewBtn(b.dataset.view); });
+document.querySelectorAll('#views button').forEach(b=>b.onclick=()=>{ if(b.dataset.view==='walk'){ enterWalk(); return; } exitWalk(); flyTo(viewDef(b.dataset.view)); setViewBtn(b.dataset.view); });
 controls.addEventListener('start',()=>{ tween=null; setViewBtn(''); });
 
 // ---------- pointer ----------
@@ -1249,6 +1270,7 @@ function pick(e){
 function rayPlane(e,y){ setRay(e); plane.constant=-y; return ray.ray.intersectPlane(plane,new THREE.Vector3()); }
 let drag=null, downInfo=null;
 onDown=e=>{
+  if(walk){ look={x:e.clientX,y:e.clientY,pid:e.pointerId}; try{ canvas.setPointerCapture(e.pointerId); }catch(_){} e.stopImmediatePropagation(); e.preventDefault(); return; }
   if(e.pointerType==='mouse'&&e.button!==0) return;
   tween=null;
   const h=pick(e); downInfo={x:e.clientX,y:e.clientY,h};
@@ -1263,6 +1285,10 @@ onDown=e=>{
   canvas.style.cursor='grabbing';
 };
 canvas.addEventListener('pointermove',e=>{
+  if(walk){
+    if(look&&e.pointerId===look.pid){ walk.yaw-=(e.clientX-look.x)*.0045; walk.pitch=Math.max(-1.2,Math.min(1.1,walk.pitch-(e.clientY-look.y)*.0045)); look.x=e.clientX; look.y=e.clientY; }
+    return;
+  }
   if(drag){
     if(e.pointerId!==drag.pid) return;
     const p=rayPlane(e,drag.y); if(!p) return;
@@ -1274,6 +1300,7 @@ canvas.addEventListener('pointermove',e=>{
   const h=pick(e); canvas.style.cursor=h.item?'grab':h.wall?'pointer':'';
 });
 addEventListener('pointerup',e=>{
+  if(walk){ look=null; return; }
   if(drag&&e.pointerId===drag.pid){ const d=drag; drag=null; canvas.style.cursor=''; if(d.moved) commit(d.before); downInfo=null; return; }
   if(downInfo&&e.target===canvas&&Math.hypot(e.clientX-downInfo.x,e.clientY-downInfo.y)<5){
     const h=downInfo.h; if(h.wall) setWallTarget(h.wall,true); else if(!h.item) select(null);
@@ -1283,6 +1310,13 @@ addEventListener('pointerup',e=>{
 addEventListener('pointercancel',()=>{ if(drag){ const d=drag; drag=null; if(d.moved) commit(d.before); } downInfo=null; });
 addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT') return;
+  if(walk){
+    const k=e.key.toLowerCase();
+    if(k==='escape'){ exitWalk(); return; }
+    if(k==='e'||k===' '){ e.preventDefault(); if(!e.repeat) toggleSit(); return; }
+    if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){ e.preventDefault(); keys[k]=true; }
+    return;
+  }
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){ e.preventDefault(); $('#undoB').click(); return; }
   if(!sel) return;
   const k=e.key;
@@ -1307,6 +1341,112 @@ addEventListener('keydown',e=>{
   }
 });
 
+// ---------- caminhar (primeira pessoa) ----------
+let walk=null, look=null; const keys={};
+// teto com plafon, só no passeio (nas outras vistas o quarto fica aberto por cima)
+const ceilG=new THREE.Group(); ceilG.visible=false; scene.add(ceilG);
+B(X0,X1,H,H+.02,Z0,Z1,std("teto",{color:"#f4f3ef",roughness:.95}),ceilG,{cast:false});
+B(-.2,.2,H-.012,H,-.2,.2,std("plafon",{color:"#ffffff",emissive:"#fff4e2",emissiveIntensity:1.6}),ceilG,{cast:false});
+const EYE=1.6, RAD=.2, HALL={x0:DOOR.x0-.2,x1:DOOR.x1+.6,z1:Z1+1.0};
+addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
+addEventListener('blur',()=>{ for(const k in keys) keys[k]=false; });
+function walkBlocked(x,z){
+  if(z>Z1-RAD){
+    if(z<Z1+T+RAD){ // passando pela porta
+      if(!S.opt.door) return true;
+      if(x<DOOR.x0+RAD-.06||x>DOOR.x1-RAD+.06) return true;
+    } else if(x<HALL.x0||x>HALL.x1||z>HALL.z1) return true;
+    if(z>=Z1) return false;
+  }
+  if(x<X0+RAD||x>X1-RAD||z<Z0+RAD) return true;
+  for(const k of ORDER){
+    const st=S.items[k]; if(!st.on||DEF[k].rug||DEF[k].wall) continue;
+    const b=worldBox(k);
+    if(x>b.x0-RAD&&x<b.x1+RAD&&z>b.z0-RAD&&z<b.z1+RAD) return true;
+  }
+  if(S.opt.door&&z<Z1&&x>DOOR.x0-RAD&&x<DOOR.x0+.05+RAD&&z>Z1-DOOR.leaf-RAD) return true; // folha da porta aberta
+  return false;
+}
+function freeSpotNear(x,z){
+  if(!walkBlocked(x,z)) return [x,z];
+  for(let r=.05;r<2;r+=.05) for(let a=0;a<Math.PI*2;a+=Math.PI/12){ const nx=x+Math.cos(a)*r, nz=z+Math.sin(a)*r; if(!walkBlocked(nx,nz)) return [nx,nz]; }
+  return [(DOOR.x0+DOOR.x1)/2,Z1+.6];
+}
+function nearSeat(){
+  const p=camera.position; let best=null, bd=.75;
+  for(const id of ['sofa','chair']){
+    const st=S.items[id]; if(!st.on) continue;
+    const b=worldBox(id), dx=Math.max(b.x0-p.x,0,p.x-b.x1), dz=Math.max(b.z0-p.z,0,p.z-b.z1), d=Math.hypot(dx,dz);
+    if(d<bd){ bd=d; best=id; }
+  }
+  return best;
+}
+function itemFrame(id){ const p=pose(id,S.items[id]), th=p.r*Math.PI/2; return {p,s:Math.sin(th),c:Math.cos(th)}; }
+const toWorld=(F,lx,lz)=>[F.p.x+lx*F.c+lz*F.s, F.p.z-lx*F.s+lz*F.c];
+function sit(id){
+  const F=itemFrame(id), cam=camera.position;
+  let lx=0, lz, y;
+  if(id==='sofa'){
+    const wx=cam.x-F.p.x, wz=cam.z-F.p.z;
+    lx=Math.max(-.55,Math.min(.55,wx*F.c-wz*F.s)); lz=-.06; y=1.12;
+  } else { lz=-.03; y=1.17; }
+  const [x,z]=toWorld(F,lx,lz); cam.set(x,y,z);
+  walk.yaw=Math.atan2(-F.s,-F.c); walk.pitch=id==="chair"?-.32:-.06; walk.seat={id,lx};
+  toast(id==='sofa'?'Sentado no sofá — olhe em volta arrastando. Ande para levantar.':'Sentado na cadeira da escrivaninha.');
+}
+function standUp(){
+  const {id,lx}=walk.seat, F=itemFrame(id), lb=localBox(id,S.items[id]);
+  const tries=id==='chair'?[lb.z0-.32,lb.z1+.32]:[lb.z1+.32];
+  let spot=null;
+  for(const lz of tries){ const [x,z]=toWorld(F,lx,lz); if(!walkBlocked(x,z)){ spot=[x,z]; break; } }
+  if(!spot){ const [x,z]=toWorld(F,lx,tries[0]); spot=freeSpotNear(x,z); }
+  camera.position.set(spot[0],EYE,spot[1]); walk.seat=null;
+}
+function toggleSit(){ if(!walk) return; if(walk.seat) standUp(); else { const id=nearSeat(); if(id) sit(id); } }
+function enterWalk(){
+  if(walk) return;
+  tween=null; select(null); controls.enabled=false;
+  walk={yaw:0,pitch:-.06,seat:null};
+  const [x,z]=freeSpotNear((DOOR.x0+DOOR.x1)/2,Z1+.75);
+  camera.position.set(x,EYE,z); camera.fov=62; camera.updateProjectionMatrix();
+  $('#walkHint').hidden=$('#walkPad').hidden=$('#cross').hidden=false; $('#sel').hidden=true;
+  canvas.focus(); setViewBtn('walk');
+  if(!S.opt.door) toast('A porta está fechada — ligue “Porta aberta” no painel para entrar.');
+}
+function exitWalk(){
+  if(!walk) return;
+  const fwd=V(-Math.sin(walk.yaw),0,-Math.cos(walk.yaw));
+  walk=null; look=null; for(const k in keys) keys[k]=false;
+  controls.target.copy(camera.position).addScaledVector(fwd,1.2); controls.target.y=Math.min(camera.position.y,1.2);
+  controls.enabled=true; camera.fov=46; camera.updateProjectionMatrix();
+  $('#walkHint').hidden=$('#walkPad').hidden=$('#cross').hidden=$('#sitBtn').hidden=true;
+  setViewBtn(''); refresh();
+}
+$('#walkExit').onclick=exitWalk;
+$('#sitBtn').onclick=toggleSit;
+document.querySelectorAll('#walkPad button').forEach(b=>{
+  const k=b.dataset.k;
+  b.onpointerdown=e=>{ e.preventDefault(); keys[k]=true; };
+  b.onpointerup=b.onpointerleave=b.onpointercancel=()=>{ keys[k]=false; };
+});
+let sitLabel='';
+function walkStep(dt){
+  const f=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0), sd=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
+  if((f||sd)&&walk.seat) standUp();
+  const p=camera.position;
+  if(!walk.seat&&(f||sd)){
+    const sp=1.35*dt, y=walk.yaw;
+    const dx=(-Math.sin(y)*f+Math.cos(y)*sd)*sp, dz=(-Math.cos(y)*f-Math.sin(y)*sd)*sp;
+    if(!walkBlocked(p.x+dx,p.z)) p.x+=dx;
+    if(!walkBlocked(p.x,p.z+dz)) p.z+=dz;
+    p.y=EYE;
+  }
+  camera.rotation.order='YXZ'; camera.rotation.set(walk.pitch,walk.yaw,0);
+  const near=walk.seat?null:nearSeat();
+  const lbl=walk.seat?'Levantar':near==='sofa'?'Sentar no sofá':near==='chair'?'Sentar na cadeira':'';
+  if(lbl!==sitLabel){ sitLabel=lbl; const b=$('#sitBtn'); b.textContent=lbl; b.hidden=!lbl; }
+}
+
 // ---------- boot ----------
 (function boot(){
   let src=null;
@@ -1325,6 +1465,7 @@ addEventListener('keydown',e=>{
 resize();
 {
   const qp=new URLSearchParams(location.search), v0=['persp','planta','entrada','sofa','janela'].includes(qp.get('v'))?qp.get('v'):'persp';
+  if(qp.get('v')==='walk') setTimeout(enterWalk,0);
   if(PRESETS[qp.get('layout')]){ S.items=presetItems(qp.get('layout'),S.items); rebuildAll(); fixConflicts(); rebuildAll(); refresh(); }
   if(qp.get('sel')&&DEF[qp.get('sel')]) select(qp.get('sel'));
   const [p0,t0,f0=46]=viewDef(v0); camera.position.set(...p0); controls.target.set(...t0); camera.fov=f0; camera.updateProjectionMatrix(); setViewBtn(v0);
@@ -1333,27 +1474,30 @@ resize();
 function resize(){ renderer.setSize(innerWidth,innerHeight,false); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize',resize); resize();
 const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
-let first=true;
+let first=true, lastT=performance.now();
 function loop(){
+  const now=performance.now(), dt=Math.min((now-lastT)/1000,.05); lastT=now;
   if(tween){
     const k=Math.min(1,(performance.now()-tween.s)/tween.dur), e=ease(k);
     camera.position.lerpVectors(tween.p0,tween.p1,e); controls.target.lerpVectors(tween.t0,tween.t1,e);
     camera.fov=tween.f0+(tween.f1-tween.f0)*e; camera.updateProjectionMatrix();
     if(k>=1) tween=null;
   }
-  controls.update();
+  if(walk) walkStep(dt); else controls.update();
   const p=camera.position;
-  M.sky.visible=controls.getPolarAngle()>.5;
+  M.sky.visible=walk||controls.getPolarAngle()>.5;
+  ceilG.visible=!!walk;
+  if(walk){ for(const k of 'ABCD') GW[k].visible=true; }
+  else { GW.A.visible=p.z>Z0-.02; GW.B.visible=p.z<Z1+.02; GW.C.visible=p.x>X0-.02; GW.D.visible=p.x<X1+.02; }
   artG.visible=artInfo.ok&&GW[artInfo.wall].visible;
   panelG.visible=panelInfo.ok&&GW[panelInfo.wall].visible;
-  GW.A.visible=p.z>Z0-.02; GW.B.visible=p.z<Z1+.02; GW.C.visible=p.x>X0-.02; GW.D.visible=p.x<X1+.02;
   renderer.render(scene,camera);
   drawOverlay();
   if(first){ first=false; const l=$('#loading'); l.style.opacity=0; setTimeout(()=>l.remove(),500); }
   requestAnimationFrame(loop);
 }
 loop();
-window.__quarto={get S(){return S;},proj:(x,y,z)=>{ const v=V(x,y,z).project(camera); return [(v.x+1)/2*innerWidth,(1-v.y)/2*innerHeight]; },conflict,worldBox,PRESETS,presetItems,select,applyPreset,setWall,setOn,toggleOpen,rotateSel,flyTo,viewDef};
+window.__quarto={get S(){return S;},proj:(x,y,z)=>{ const v=V(x,y,z).project(camera); return [(v.x+1)/2*innerWidth,(1-v.y)/2*innerHeight]; },conflict,worldBox,PRESETS,enterWalk,exitWalk,toggleSit,walkBlocked,get walk(){return walk;},keys,camera,presetItems,select,applyPreset,setWall,setOn,toggleOpen,rotateSel,flyTo,viewDef};
 </script>
 </body>
 </html>
