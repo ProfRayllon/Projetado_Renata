@@ -549,7 +549,20 @@ function buildSpeaker(g){
   B(-.03,.03,.30,.33,.164,.167,M.orange,g,{cast:false});
 }
 function buildGuitar(g){
-  const gt=new THREE.Group(); gt.position.set(0,0,.085); gt.rotation.x=-.22; g.add(gt);
+  const gt=new THREE.Group(); gt.position.set(0,0,.085); gt.rotation.x=-.22; g.add(gt); guitarParts(gt);
+}
+// violão pendurado: suporte de parede segurando o braço logo abaixo da mão
+function buildGuitarWall(g){
+  const gt=new THREE.Group(); gt.position.set(0,0,.07); g.add(gt); guitarParts(gt);
+  B(-.035,.035,.86,.98,0,.012,M.black,g);                 // base parafusada na parede
+  mk(cylZ(.008,.04,12),M.black,g,0,.92,.031);               // haste
+  B(-.042,.042,.914,.926,.044,.058,M.black,g);              // travessa atrás do braço
+  for(const sx of [-1,1]){                                  // garfo: o braço passa entre os dedos e a mão apoia em cima
+    mk(cylZ(.006,.042,10),M.black,g,sx*.034,.92,.076);
+    mk(new THREE.SphereGeometry(.009,10,8),M.black,g,sx*.034,.932,.095);
+  }
+}
+function guitarParts(gt){
   const mats=[M.gSide,M.gTop,M.gSide];
   const lo=mk(new THREE.CylinderGeometry(.17,.17,.09,48),mats,gt,0,.22,0); lo.rotation.x=Math.PI/2; lo.scale.set(1,1,1.05);
   const up=mk(new THREE.CylinderGeometry(.13,.13,.09,48),mats,gt,0,.44,0); up.rotation.x=Math.PI/2;
@@ -595,7 +608,8 @@ const DEF={
   shelf:{name:'Estante',img:'estante',w:1.45,d:.32,h:1.85,front:true,build:buildShelf},
   tables:{name:'Mesas de apoio',img:'mesas_apoio',w:.58,d:.42,h:.58,build:buildTables},
   speaker:{name:'Caixa de som',img:'caixa_som',w:.32,d:.32,h:.62,build:buildSpeaker},
-  guitar:{name:'Violão',img:'violao',w:.34,d:.28,h:1.0,build:buildGuitar},
+  guitar:{name:'Violão',img:'violao',w:.34,d:.28,h:1.0,build:buildGuitar,dims:()=>'0,34 × 1,00 m · encostado no chão',pair:'guitarW'},
+  guitarW:{name:'Violão',img:'violao',w:.36,d:.12,h:1.1,wall:true,build:buildGuitarWall,dims:()=>'0,36 × 1,10 m · no suporte de parede',pair:'guitar',hmin:.3},
   rug:{name:'Tapete',icon:'▭',w:1.4,d:2.0,h:.012,rug:true,build:buildRug},
   plant:{name:'Planta de chão',icon:'🌿',w:.42,d:.42,h:1.25,build:buildPlant},
 };
@@ -612,7 +626,7 @@ const FABRICS={bege:['Bege','#c9bdab'],cinza:['Cinza','#8f8c87'],grafite:['Grafi
 const TOPS={freijo:['Freijó','#b98450'],preto:['Preto','#232323']};
 function baseItems(){ return {
   sofa:{on:true,open:false,x:0,z:0,r:0}, tv:{on:true,wall:'D',s:0,yb:1.15}, desk:{on:true,x:0,z:0,r:0}, chair:{on:true,x:0,z:0,r:0},
-  shelf:{on:true,x:0,z:0,r:0}, tables:{on:true,x:0,z:0,r:0}, speaker:{on:true,x:0,z:0,r:0}, guitar:{on:true,x:0,z:0,r:0},
+  shelf:{on:true,x:0,z:0,r:0}, tables:{on:true,x:0,z:0,r:0}, speaker:{on:true,x:0,z:0,r:0}, guitar:{on:true,x:0,z:0,r:0}, guitarW:{on:false,wall:'D',s:-.52,yb:.9},
   rug:{on:false,x:.05,z:-.3,r:0}, plant:{on:false,x:-.05,z:-1.4,r:0} }; }
 const PRESETS={
   atual:{name:'Como está hoje',items:{sofa:{x:-.775,z:-.65,r:1},tv:{wall:'D',s:-.95},desk:{x:.64,z:1.375,r:2},chair:{x:.64,z:.98,r:0},
@@ -625,7 +639,8 @@ const PRESETS={
 function presetItems(key,keepFrom){
   const it=baseItems();
   for(const id in PRESETS[key].items) Object.assign(it[id],PRESETS[key].items[id]);
-  if(keepFrom){ for(const id of ['rug','plant']) it[id]={...keepFrom[id]}; it.sofa.open=keepFrom.sofa.open; it.tv.yb=keepFrom.tv.yb; }
+  if(keepFrom){ for(const id of ['rug','plant']) it[id]={...keepFrom[id]};
+    if(keepFrom.guitarW.on){ it.guitarW={...keepFrom.guitarW}; it.guitar.on=false; } it.sofa.open=keepFrom.sofa.open; it.tv.yb=keepFrom.tv.yb; }
   return it;
 }
 function freshState(){ return {items:presetItems('atual'),walls:{A:WHITE,B:WHITE,C:WHITE,D:WHITE},
@@ -907,7 +922,7 @@ function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('sh
 function select(id){ sel=id; refresh(); }
 function rotateSel(){
   if(!sel) return; const id=sel, st=S.items[id];
-  if(DEF[id].wall){ toast('A TV fica sempre de frente para o quarto — arraste para outra parede para mudar o lado.'); return; }
+  if(DEF[id].wall){ toast(`${id==='tv'?'A TV fica':'O violão fica'} sempre de frente para o quarto — arraste para outra parede para mudar o lado.`); return; }
   const before=snapshot(), n={...st,r:(st.r+1)%4};
   const f=findFree(id,clampRoom(id,n),.6);
   if(!f){ toast(`Sem espaço para girar ${DEF[id].name.toLowerCase()} aqui. Afaste um pouco e tente de novo.`); return; }
@@ -923,13 +938,33 @@ function toggleOpen(){
 function setOn(id,on){
   const before=snapshot(), st=S.items[id];
   if(!on){ st.on=false; place(id); if(sel===id) sel=null; commit(before); return; }
+  const pair=DEF[id].pair, pairWas=pair?{...S.items[pair]}:null;
+  if(pair&&S.items[pair].on){ S.items[pair].on=false; place(pair); }
   const n={...st,on:true}; S.items[id]=n;
-  if(conflict(id,n)){ const f=findFree(id,n,3,.04); if(!f){ S.items[id]=st; toast(`Não há espaço livre para ${DEF[id].name.toLowerCase()} agora. Tire ou mova outro item.`); return; } S.items[id]=f; }
+  if(conflict(id,n)){ const f=findFree(id,n,3,.04); if(!f){ S.items[id]=st; if(pair){ S.items[pair]=pairWas; place(pair); } toast(`Não há espaço livre para ${DEF[id].name.toLowerCase()} agora. Tire ou mova outro item.`); return; } S.items[id]=f; }
   place(id); sel=id; commit(before);
 }
-function setTvHeight(v){
-  const st=S.items.tv, n={...st,yb:v};
-  if(conflict('tv',n)){ return false; } S.items.tv=n; place('tv'); updateSelVisuals(); return true;
+function setWallHeight(id,v){
+  const st=S.items[id], n={...st,yb:v};
+  if(conflict(id,n)){ return false; } S.items[id]=n; place(id); updateArt(); updateSelVisuals(); return true;
+}
+// troca o violão entre "encostado no chão" e "no suporte de parede", perto de onde ele está
+function setGuitarMount(toWall){
+  const before=snapshot(), from=toWall?'guitar':'guitarW', to=toWall?'guitarW':'guitar';
+  const p=worldBox(from), cx=(p.x0+p.x1)/2, cz=(p.z0+p.z1)/2;
+  let n;
+  if(toWall){
+    const d={A:cz-Z0,B:Z1-cz,C:cx-X0,D:X1-cx}; let w='A'; for(const k in d) if(d[k]<d[w]) w=k;
+    const lim=wallSpan(to,w); n={...S.items[to],on:true,wall:w,s:r5(Math.max(-lim,Math.min(lim,(w==='A'||w==='B')?cx:cz)))};
+  } else {
+    const w=S.items.guitarW.wall, r=WALLS[w].r, f=[[0,1],[1,0],[0,-1],[-1,0]][r];
+    n={...S.items[to],on:true,r,x:r5(cx+f[0]*.14),z:r5(cz+f[1]*.14)};
+  }
+  S.items[from].on=false; place(from);
+  const ok=findFree(to,toWall?n:clampRoom(to,n),3,.04);
+  if(!ok){ S.items[from].on=true; place(from); toast(toWall?'Não há parede livre para pendurar o violão agora.':'Não há espaço no chão para o violão agora.'); return; }
+  S.items[to]=ok; place(to); sel=to; commit(before);
+  toast(toWall?'Violão no suporte de parede — arraste para escolher o lugar.':'Violão de volta ao chão.');
 }
 function applyPreset(k){
   const before=snapshot();
@@ -983,6 +1018,7 @@ function renderPanel(){
   // items
   const il=$('#itemList'); il.innerHTML='';
   for(const id of ORDER){
+    if(DEF[id].pair&&!S.items[id].on&&(S.items[DEF[id].pair].on||id==='guitarW')) continue;
     const d=DEF[id], st=S.items[id], r=document.createElement('div');
     r.className='it'+(st.on?'':' off')+(sel===id?' sel':'');
     r.innerHTML=(d.img?`<img src="assets/quarto/${d.img}.jpg" alt="">`:`<div class="ph">${d.icon||''}</div>`)+`<div><b>${d.name}</b><span>${dimsOf(id,st)}</span></div>`;
@@ -1024,16 +1060,17 @@ function renderSel(){
   box.querySelector('.dims').textContent=dimsOf(id,st)+(d.wall?` · ${WALLS[st.wall].name.toLowerCase()}`:'');
   const cl=box.querySelector('.clear'), fr=CL.find(c=>c.front);
   cl.classList.remove('warn');
-  if(d.wall) cl.textContent=`Base da TV a ${cm(st.yb)} do piso.`;
+  const hl=y=>`${id==='tv'?'Base da TV':'Base do violão'} a ${cm(y)} do piso.`;
+  if(d.wall) cl.textContent=hl(st.yb);
   else if(d.rug) cl.textContent='O tapete pode ficar por baixo dos outros móveis.';
   else if(d.front&&fr){ cl.textContent=fr.d<.6?`Espaço à frente: ${cm(fr.d)} — abaixo dos 60 cm recomendados para circular.`:`Espaço livre à frente: ${cm(fr.d)}.`; cl.classList.toggle('warn',fr.d<.6); }
   else cl.textContent='Linhas no piso mostram a distância até paredes e móveis.';
   const ex=box.querySelector('.extra'); ex.innerHTML='';
   if(d.wall){
     const lb=document.createElement('label'); lb.className='rng'; lb.innerHTML='Altura';
-    const r=document.createElement('input'); r.type='range'; r.min=.6; r.max=1.6; r.step=.01; r.value=st.yb;
+    const r=document.createElement('input'); r.type='range'; r.min=d.hmin??.6; r.max=Math.min(1.6,H-d.h-.05); r.step=.01; r.value=st.yb;
     let before=null;
-    r.oninput=()=>{ before??=snapshot(); if(!setTvHeight(+r.value)){ r.value=S.items.tv.yb; } cl.textContent=`Base da TV a ${cm(S.items.tv.yb)} do piso.`; };
+    r.oninput=()=>{ before??=snapshot(); if(!setWallHeight(id,+r.value)){ r.value=S.items[id].yb; } cl.textContent=hl(S.items[id].yb); };
     r.onchange=()=>{ commit(before); before=null; };
     lb.appendChild(r); ex.appendChild(lb);
   }
@@ -1041,6 +1078,8 @@ function renderSel(){
   const add=(l,fn,cls='btn')=>{ const b=document.createElement('button'); b.className=cls; b.textContent=l; b.onclick=fn; bt.appendChild(b); };
   if(!d.wall) add('↻ Girar 90°',rotateSel,'btn dark');
   if(id==='sofa') add(st.open?'Fechar sofá':'Abrir sofá',toggleOpen);
+  if(id==='guitar') add('Pendurar na parede',()=>setGuitarMount(true),'btn');
+  if(id==='guitarW') add('Colocar no chão',()=>setGuitarMount(false),'btn');
   add('Tirar do quarto',()=>setOn(id,false));
 }
 function updateMeta(){
