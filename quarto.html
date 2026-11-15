@@ -92,7 +92,7 @@ input.txt:focus{outline:none;border-color:var(--ink)}
 #sel label.rng{display:flex;align-items:center;gap:10px;font-size:12.5px;margin-top:10px}
 #sel label.rng input{flex:1;accent-color:var(--ink)}
 .sizeRow{display:flex;align-items:center;gap:10px;font-size:12.5px;margin-top:10px}
-.sizeRow .lbl{width:52px}
+.sizeRow .lbl{width:58px}
 .sizeRow input{flex:1;accent-color:var(--ink);min-width:0}
 .sizeRow .val{width:52px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
 #ov{position:fixed;inset:0;pointer-events:none;overflow:hidden}
@@ -183,6 +183,7 @@ input.txt:focus{outline:none;border-color:var(--ink)}
   <div class="sub">Painel ripado atrás da TV</div>
   <div class="sw" id="panelSw"></div>
   <div id="panelSize"></div>
+  <p class="note">Topo e base medidos a partir do piso — suba a base para o painel não começar no chão.</p>
   <p class="note" id="panelNote" hidden></p>
   <div style="margin-top:12px" id="toggles"></div>
 
@@ -652,7 +653,7 @@ function presetItems(key,keepFrom){
   return it;
 }
 function freshState(){ return {items:presetItems('atual'),walls:{A:WHITE,B:WHITE,C:WHITE,D:WHITE},
-  opt:{fabric:'bege',top:'freijo',throw:true,door:true,blind:'meia',art:'vintage',panel:'freijo',panelW:1.2,panelH:2.45,decor:true,labels:true,magnet:true}}; }
+  opt:{fabric:'bege',top:'freijo',throw:true,door:true,blind:'meia',art:'vintage',panel:'freijo',panelW:1.2,panelB:0,panelH:2.45,decor:true,labels:true,magnet:true}}; }
 let S=freshState(), sel=null, wallTarget='all';
 
 // ---------- geometry of placement ----------
@@ -767,7 +768,7 @@ function place(id){
   const st=S.items[id], g=IG[id], p=pose(id,st);
   g.position.set(p.x,DEF[id].wall?st.yb:0,p.z); g.rotation.y=p.r*Math.PI/2; g.visible=!!st.on;
   // itens de parede ficam na frente do painel ripado quando estão sobre ele
-  if(DEF[id].wall&&panelInfo.ok&&st.wall===panelInfo.wall&&Math.abs(st.s-panelInfo.c)<panelInfo.w/2+DEF[id].w/2&&st.yb<panelInfo.h){
+  if(DEF[id].wall&&panelInfo.ok&&st.wall===panelInfo.wall&&Math.abs(st.s-panelInfo.c)<panelInfo.w/2+DEF[id].w/2&&st.yb<panelInfo.h&&st.yb+DEF[id].h>panelInfo.b){
     const th=p.r*Math.PI/2; g.position.x+=Math.sin(th)*PANEL_D; g.position.z+=Math.cos(th)*PANEL_D;
   }
 }
@@ -841,19 +842,20 @@ let panelInfo={ok:false,msg:''}, panelKey='';
 function panelLimits(w,c,want){
   // obstáculos ao longo da parede: aberturas, ar-condicionado e móveis altos encostados nela
   const obs=[];
-  if(w==='A') obs.push({a:WIN.x0,b:WIN.x1,y0:WIN.y0,n:'a janela'});
-  if(w==='B') obs.push({a:DOOR.x0-.06,b:DOOR.x1+.06,y0:0,n:'a porta'});
-  if(w==='C') obs.push({a:AC.z0,b:AC.z1,y0:AC.y0,n:'o ar-condicionado'});
+  if(w==='A') obs.push({a:WIN.x0,b:WIN.x1,y0:WIN.y0,y1:WIN.y1,n:'a janela'});
+  if(w==='B') obs.push({a:DOOR.x0-.06,b:DOOR.x1+.06,y0:0,y1:DOOR.h+.06,n:'a porta'});
+  if(w==='C') obs.push({a:AC.z0,b:AC.z1,y0:AC.y0,y1:AC.y1,n:'o ar-condicionado'});
   for(const k of ORDER){
     const st=S.items[k]; if(!st.on||DEF[k].wall||DEF[k].rug||DEF[k].h<1.2) continue;
     const b=worldBox(k), m=.05;
     const touch=w==='A'?b.z0<Z0+m:w==='B'?b.z1>Z1-m:w==='C'?b.x0<X0+m:b.x1>X1-m;
     if(!touch) continue;
-    const horiz=w==='A'||w==='B'; obs.push({a:horiz?b.x0:b.z0,b:horiz?b.x1:b.z1,y0:0,n:k==='shelf'?'a estante':DEF[k].name.toLowerCase()});
+    const horiz=w==='A'||w==='B'; obs.push({a:horiz?b.x0:b.z0,b:horiz?b.x1:b.z1,y0:0,y1:b.y1,n:k==='shelf'?'a estante':DEF[k].name.toLowerCase()});
   }
   const half=WALLS[w].len/2, tvTop=S.items.tv.yb+DEF.tv.h;
   let lo=-half, hi=half, h=want.h, loN='a parede', hiN='a parede', hN='';
   for(const o of obs){
+    if(o.y1<=want.b+.005) continue;
     if(o.y0>tvTop+.05){ if(o.b>c-want.w/2&&o.a<c+want.w/2&&o.y0-.01<h){ h=o.y0-.01; hN=o.n; } continue; }
     if(o.b<=c+.001){ if(o.b>lo){ lo=o.b; loN=o.n; } }
     else if(o.a>=c-.001){ if(o.a<hi){ hi=o.a; hiN=o.n; } }
@@ -870,28 +872,29 @@ function updatePanel(){
   const prev=panelInfo; panelInfo={ok:false,msg:''};
   if(fin&&!tv.on) panelInfo.msg='O painel acompanha a TV — coloque a TV no quarto.';
   if(fin&&tv.on){
-    const L=panelLimits(tv.wall,tv.s,{w:S.opt.panelW,h:S.opt.panelH});
+    const L=panelLimits(tv.wall,tv.s,{w:S.opt.panelW,h:S.opt.panelH,b:S.opt.panelB});
     const w=L.b-L.a, c=(L.a+L.b)/2;
     if(w<.3){ panelInfo.msg='Não há parede livre para o painel ao redor da TV.'; }
     else{
-      panelInfo={ok:true,wall:tv.wall,c,w,h:L.h,msg:''};
+      const pb=Math.min(S.opt.panelB,L.h-.3);
+      panelInfo={ok:true,wall:tv.wall,c,w,h:L.h,b:pb,msg:''};
       const notes=[];
       const de=n=>(n.startsWith('o ')?'do ':n.startsWith('a ')?'da ':'de ')+n.replace(/^(o|a) /,'');
       if(w<S.opt.panelW-.01) notes.push('largura limitada a '+fmt(w)+' m por causa '+L.limits.map(de).join(' e '));
       if(L.h<S.opt.panelH-.01) notes.push('altura limitada a '+fmt(L.h)+' m por causa '+de(L.hN));
       if(notes.length) panelInfo.msg=notes.join('; ').replace(/^./,m=>m.toUpperCase())+'.';
-      const key=[S.opt.panel,w.toFixed(3),L.h.toFixed(3)].join('|');
+      const key=[S.opt.panel,w.toFixed(3),L.h.toFixed(3),pb.toFixed(3)].join('|');
       if(key!==panelKey){
         panelKey=key; panelG.traverse(o=>{ if(o.isMesh) o.geometry.dispose(); }); panelG.clear();
         const mat=fin[2](), hw=w/2;
-        B(-hw,hw,0,L.h,0,.006,M.ripaFundo,panelG);
+        B(-hw,hw,pb,L.h,0,.006,M.ripaFundo,panelG);
         const n=Math.max(1,Math.floor((w-SLAT)/PITCH)+1), x0=-((n-1)*PITCH)/2;
-        for(let i=0;i<n;i++){ const x=x0+i*PITCH; B(x-SLAT/2,x+SLAT/2,0,L.h,.006,PANEL_D,mat,panelG); }
+        for(let i=0;i<n;i++){ const x=x0+i*PITCH; B(x-SLAT/2,x+SLAT/2,pb,L.h,.006,PANEL_D,mat,panelG); }
       }
       const [px,pz]=WALLS[tv.wall].pos(c); panelG.position.set(px,0,pz); panelG.rotation.y=WALLS[tv.wall].r*Math.PI/2;
     }
   }
-  if(prev.ok!==panelInfo.ok||prev.wall!==panelInfo.wall||prev.c!==panelInfo.c||prev.w!==panelInfo.w||prev.h!==panelInfo.h){ place('tv'); place('guitarW'); }
+  if(prev.ok!==panelInfo.ok||prev.wall!==panelInfo.wall||prev.c!==panelInfo.c||prev.w!==panelInfo.w||prev.h!==panelInfo.h||prev.b!==panelInfo.b){ place('tv'); place('guitarW'); }
   const pn=document.getElementById('panelNote'); if(pn){ pn.textContent=panelInfo.msg; pn.hidden=!panelInfo.msg; }
 }
 
@@ -982,7 +985,8 @@ function sanitize(o){
     if(BLIND_DROP[o.opt.blind]) s.opt.blind=o.opt.blind;
     if(o.opt.panel==='none'||PANEL_FIN[o.opt.panel]) s.opt.panel=o.opt.panel;
     if(typeof o.opt.panelW==='number'&&o.opt.panelW>=.4&&o.opt.panelW<=L) s.opt.panelW=o.opt.panelW;
-    if(typeof o.opt.panelH==='number'&&o.opt.panelH>=.8&&o.opt.panelH<=H) s.opt.panelH=o.opt.panelH; if(o.opt.art==='none'||ART[o.opt.art]) s.opt.art=o.opt.art; }
+    if(typeof o.opt.panelH==='number'&&o.opt.panelH>=.8&&o.opt.panelH<=H) s.opt.panelH=o.opt.panelH;
+    if(typeof o.opt.panelB==='number'&&o.opt.panelB>=0&&o.opt.panelB<=1.6) s.opt.panelB=Math.min(o.opt.panelB,s.opt.panelH-.4); if(o.opt.art==='none'||ART[o.opt.art]) s.opt.art=o.opt.art; }
   return s;
 }
 function fixConflicts(){
@@ -1130,14 +1134,16 @@ function renderPanel(){
   const pz=$('#panelSize'); pz.innerHTML='';
   if(S.opt.panel!=='none'){
     const tvWall=S.items.tv.wall, maxW=WALLS[tvWall].len;
-    for(const [k,l,mn,mx] of [['panelW','Largura',.6,maxW],['panelH','Altura',1.0,H]]){
+    for(const [k,l,mn,mx] of [['panelW','Largura',.6,maxW],['panelH','Topo',1.0,H],['panelB','Base',0,1.6]]){
       const lb=document.createElement('label'); lb.className='rng sizeRow';
       const t=document.createElement('span'); t.className='lbl'; t.textContent=l;
       const v=document.createElement('b'); v.className='val';
       const r=document.createElement('input'); r.type='range'; r.min=mn; r.max=mx; r.step=.05; r.value=Math.min(mx,S.opt[k]);
       const show=()=>{ v.textContent=fmt(+r.value)+' m'; };
       let before=null;
-      r.oninput=()=>{ before??=snapshot(); S.opt[k]=+r.value; show(); updatePanel(); updateArt(); };
+      r.oninput=()=>{ before??=snapshot(); let v=+r.value;
+        if(k==='panelB') v=Math.min(v,S.opt.panelH-.4); if(k==='panelH') v=Math.max(v,S.opt.panelB+.4);
+        r.value=v; S.opt[k]=v; show(); updatePanel(); updateArt(); };
       r.onchange=()=>{ commit(before); before=null; };
       show(); lb.append(t,r,v); pz.appendChild(lb);
     }
