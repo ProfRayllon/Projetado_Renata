@@ -171,6 +171,11 @@ input.txt:focus{outline:none;border-color:var(--ink)}
   <div class="sw" id="fabricSw"></div>
   <div class="sub">Tampo da escrivaninha</div>
   <div class="sw" id="topSw"></div>
+  <div class="sub">Quadro acima do sofá</div>
+  <div class="sw" id="artSw"></div>
+  <p class="note" id="artNote" hidden></p>
+  <div class="sub">Persiana rolô da janela</div>
+  <div class="sw" id="blindSw"></div>
   <div style="margin-top:12px" id="toggles"></div>
 
   <h2>Como usar</h2>
@@ -184,9 +189,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const $=s=>document.querySelector(s);
 const W=2.45, L=3.28, H=2.45, X0=-W/2, X1=W/2, Z0=-L/2, Z1=L/2, T=.1, E=.001;
-const WIN={x0:-.875,x1:.275,y0:1.05,y1:2.0};
+const WIN={x0:-.575,x1:.575,y0:1.05,y1:2.0}; // centralizada na parede
 const DOOR={x0:-1.175,x1:-.375,h:2.10,leaf:.78}; // porta encostada na parede do ar-condicionado
-const AC={z0:-.35,z1:.50,y0:2.02,y1:2.31};
+const AC={z0:Z0+.01,z1:Z0+.86,y0:2.02,y1:2.31}; // no alto, encostado na parede da janela
 const V=(x,y,z)=>new THREE.Vector3(x,y,z);
 const fmt=(n,d=2)=>n.toFixed(d).replace('.',',');
 const cm=n=>Math.round(n*100)+' cm';
@@ -280,7 +285,8 @@ const M={
   sill:std('peitoril',{color:'#f1efea',roughness:.3}),
   sky:new THREE.MeshBasicMaterial({map:skyTex}),
   hall:std('corredor',{color:'#f3f2ee',roughness:.9}),
-  curtain:std('cortina',{color:'#f6f6f3',roughness:.95,side:THREE.DoubleSide,transparent:true,opacity:.93}),
+  blind:std('persiana',{color:'#f5f4f0',roughness:.9,emissive:'#ffffff',emissiveIntensity:.06}),
+  frame:std('moldura',{color:'#141414',roughness:.5}),
   acW:std('ar_condicionado',{color:'#f7f7f5',roughness:.35}),
   acDark:std('ar_grade',{color:'#3c3f43',roughness:.6}),
   fabric:std('tecido_sofa',{color:'#c9bdab',roughness:.95}),
@@ -384,14 +390,18 @@ B(X0-T,X1+T,-.02,0,Z0-T,Z1+T,M.floor,scene,{cast:false});
   B(WIN.x0-.03,WIN.x1+.03,WIN.y0-.02,WIN.y0,Z0-T,Z0+.025,M.sill,g);
   const sky=new THREE.Mesh(new THREE.PlaneGeometry(3.2,2.6),M.sky); sky.position.set(xm,1.5,Z0-1.0); g.add(sky);
 }
-// cortina
-const curtainG=new THREE.Group(); GW.A.add(curtainG);
+// persiana rolô
+const BLIND={x0:WIN.x0-.05,x1:WIN.x1+.05,y:WIN.y1+.09,z:Z0+.06};
+const BLIND_DROP={aberta:.05,meia:.55,fechada:1.04};
+let blindFabric, blindBar;
 {
-  mk(cylX(.011,WIN.x1+.12-(X0+.03)),M.base,curtainG,(X0+.03+WIN.x1+.12)/2,2.24,Z0+.09);
-  const cw=.66, ch=1.36, geo=new THREE.PlaneGeometry(cw,ch,60,1), p=geo.attributes.position;
-  for(let i=0;i<p.count;i++) p.setZ(i,Math.sin(p.getX(i)*48)*.022);
-  geo.computeVertexNormals();
-  mk(geo,M.curtain,curtainG,X0+.05+cw/2,2.22-ch/2,Z0+.1);
+  const g=GW.A, w=BLIND.x1-BLIND.x0, cx=(BLIND.x0+BLIND.x1)/2;
+  mk(cylX(.028,w+.02,28),M.blind,g,cx,BLIND.y,BLIND.z);
+  for(const x of [BLIND.x0-.018,BLIND.x1+.018]) B(x-.012,x+.012,BLIND.y-.035,BLIND.y+.035,Z0,BLIND.z+.03,M.acW,g);
+  const fg=new THREE.BoxGeometry(w-.01,1,.003); fg.translate(0,-.5,0);
+  blindFabric=mk(fg,M.blind,g,cx,BLIND.y-.02,BLIND.z+.03);
+  blindBar=B(BLIND.x0+.005,BLIND.x1-.005,-.025,0,BLIND.z+.022,BLIND.z+.04,M.acW,g);
+  mk(new THREE.CylinderGeometry(.0035,.0035,.9,6),M.chrome,g,BLIND.x1+.012,BLIND.y-.47,BLIND.z+.045,{cast:false});
 }
 // porta
 const doorLeaf=new THREE.Group(); GW.B.add(doorLeaf);
@@ -607,7 +617,7 @@ function baseItems(){ return {
 const PRESETS={
   atual:{name:'Como está hoje',items:{sofa:{x:-.775,z:-.65,r:1},tv:{wall:'D',s:-.95},desk:{x:.64,z:1.375,r:2},chair:{x:.64,z:.98,r:0},
     shelf:{x:1.065,z:.38,r:3},tables:{x:1.015,z:-1.32,r:3},speaker:{x:1.065,z:-.86,r:3},guitar:{x:1.085,z:-.52,r:3}}},
-  office:{name:'Home office na janela',items:{desk:{x:-.29,z:-1.375,r:0},chair:{x:-.29,z:-1.0,r:2},shelf:{x:.48,z:1.48,r:2},tv:{wall:'C',s:.2},
+  office:{name:'Home office na janela',items:{desk:{x:0,z:-1.375,r:0},chair:{x:0,z:-1.0,r:2},shelf:{x:.48,z:1.48,r:2},tv:{wall:'C',s:.2},
     guitar:{x:-1.085,z:.05,r:1},sofa:{x:.775,z:.30,r:3},tables:{x:1.015,z:-1.32,r:3},speaker:{x:1.065,z:-.86,r:3}}},
   janela:{name:'Sofá sob a janela',items:{sofa:{x:-.21,z:-1.19,r:0},tv:{wall:'B',s:.58},desk:{x:.96,z:.2,r:3},chair:{x:.55,z:.2,r:1},
     shelf:{x:-1.065,z:.10,r:1},tables:{x:1.015,z:-1.32,r:3},speaker:{x:.40,z:1.48,r:2},guitar:{x:.80,z:1.50,r:2}}},
@@ -619,7 +629,7 @@ function presetItems(key,keepFrom){
   return it;
 }
 function freshState(){ return {items:presetItems('atual'),walls:{A:WHITE,B:WHITE,C:WHITE,D:WHITE},
-  opt:{fabric:'bege',top:'freijo',throw:true,door:true,curtain:true,decor:true,labels:true,magnet:true}}; }
+  opt:{fabric:'bege',top:'freijo',throw:true,door:true,blind:'meia',art:'vintage',decor:true,labels:true,magnet:true}}; }
 let S=freshState(), sel=null, wallTarget='all';
 
 // ---------- geometry of placement ----------
@@ -738,9 +748,54 @@ function applyLook(){
   for(const k of 'ABCD') WM[k].color.set(S.walls[k]);
   M.fabric.color.set(FABRICS[S.opt.fabric][1]);
   doorLeaf.rotation.y=S.opt.door?Math.PI/2*.94:0;
-  curtainG.visible=!!S.opt.curtain;
+  const dr=BLIND_DROP[S.opt.blind]; blindFabric.scale.y=dr; blindBar.position.y=BLIND.y-.02-dr;
 }
 function rebuildAll(){ ORDER.forEach(rebuild); applyLook(); }
+
+// ---------- quadro acima do sofá ----------
+const ART={
+  vintage:{name:'Mapa vintage',w:.92,h:.66,yb:1.28,thumb:'quadro_vintage_thumb.jpg'},
+  preto:{name:'Mapa preto (MDF)',w:1.2,h:.72,yb:1.24,thumb:'mapa_preto_thumb.jpg'},
+};
+{
+  const tl=new THREE.TextureLoader();
+  const t1=tl.load('assets/quarto/mapa_vintage.jpg'), t2=tl.load('assets/quarto/mapa_preto.png');
+  for(const t of [t1,t2]){ t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8; }
+  M.print=std('quadro_mapa',{map:t1,roughness:.85});
+  M.mdf=std('mapa_mdf',{map:t2,alphaTest:.5,roughness:.6});
+}
+const artG=new THREE.Group(); scene.add(artG);
+let artBuilt=null, artInfo={ok:false,msg:''};
+function buildArt(){
+  artG.traverse(o=>{ if(o.isMesh) o.geometry.dispose(); }); artG.clear(); artBuilt=S.opt.art;
+  const a=ART[S.opt.art]; if(!a) return;
+  if(S.opt.art==='vintage'){
+    const fw=.035, d=.03, hw=a.w/2;
+    B(-hw,hw,0,fw,0,d,M.frame,artG); B(-hw,hw,a.h-fw,a.h,0,d,M.frame,artG);
+    B(-hw,-hw+fw,fw,a.h-fw,0,d,M.frame,artG); B(hw-fw,hw,fw,a.h-fw,0,d,M.frame,artG);
+    B(-hw+fw,hw-fw,fw,a.h-fw,.004,.012,M.print,artG);
+  } else {
+    mk(new THREE.PlaneGeometry(a.w,a.h),M.mdf,artG,0,a.h/2,.008);
+  }
+}
+function updateArt(){
+  if(artBuilt!==S.opt.art) buildArt();
+  artInfo={ok:false,msg:''};
+  const a=ART[S.opt.art]; if(!a) return;
+  const st=S.items.sofa;
+  if(!st.on){ artInfo.msg='Coloque o sofá no quarto para ver o quadro.'; return; }
+  const b=worldBox('sofa'), r=st.r, m=.08;
+  const w=r===0&&b.z0<Z0+m?'A':r===1&&b.x0<X0+m?'C':r===2&&b.z1>Z1-m?'B':r===3&&b.x1>X1-m?'D':null;
+  if(!w){ artInfo.msg='O quadro aparece quando o encosto do sofá está junto de uma parede.'; return; }
+  const horiz=w==='A'||w==='B', lim=WALLS[w].len/2-a.w/2;
+  const s=Math.max(-lim,Math.min(lim,horiz?(b.x0+b.x1)/2:(b.z0+b.z1)/2)), d=.04;
+  const box=horiz?{x0:s-a.w/2,x1:s+a.w/2,z0:w==='A'?Z0:Z1-d,z1:w==='A'?Z0+d:Z1}:{x0:w==='C'?X0:X1-d,x1:w==='C'?X0+d:X1,z0:s-a.w/2,z1:s+a.w/2};
+  box.y0=a.yb; box.y1=a.yb+a.h;
+  for(const f of FIXED) if(overlap(box,f)){ artInfo.msg='Acima do sofá fica '+f.name+' — não há parede livre para o quadro.'; return; }
+  for(const k of ORDER){ if(!S.items[k].on||DEF[k].rug) continue; if(overlap(box,worldBox(k))){ artInfo.msg='O quadro bateria '+(DEF[k].name==='TV'?'na TV':'em '+DEF[k].name.toLowerCase())+'. Mude o sofá ou o item de lugar.'; return; } }
+  const [px,pz]=WALLS[w].pos(s); artG.position.set(px,a.yb,pz); artG.rotation.y=WALLS[w].r*Math.PI/2;
+  artInfo={ok:true,wall:w,msg:''};
+}
 
 // ---------- selection visuals ----------
 const ACC='#9a6334';
@@ -824,8 +879,9 @@ function sanitize(o){
     if(typeof src.wall==='string'&&WALLS[src.wall]) dst.wall=src.wall;
   }
   if(o.walls) for(const k of 'ABCD') if(/^#[0-9a-f]{6}$/i.test(o.walls[k]||'')) s.walls[k]=o.walls[k];
-  if(o.opt){ for(const k of ['throw','door','curtain','decor','labels','magnet']) if(typeof o.opt[k]==='boolean') s.opt[k]=o.opt[k];
-    if(FABRICS[o.opt.fabric]) s.opt.fabric=o.opt.fabric; if(TOPS[o.opt.top]) s.opt.top=o.opt.top; }
+  if(o.opt){ for(const k of ['throw','door','decor','labels','magnet']) if(typeof o.opt[k]==='boolean') s.opt[k]=o.opt[k];
+    if(FABRICS[o.opt.fabric]) s.opt.fabric=o.opt.fabric; if(TOPS[o.opt.top]) s.opt.top=o.opt.top;
+    if(BLIND_DROP[o.opt.blind]) s.opt.blind=o.opt.blind; if(o.opt.art==='none'||ART[o.opt.art]) s.opt.art=o.opt.art; }
   return s;
 }
 function fixConflicts(){
@@ -940,11 +996,16 @@ function renderPanel(){
   for(const k in FABRICS) fs.appendChild(chip(FABRICS[k][0],FABRICS[k][1],S.opt.fabric===k,()=>{ const b=snapshot(); S.opt.fabric=k; applyLook(); commit(b); }));
   const ts=$('#topSw'); ts.innerHTML='';
   for(const k in TOPS) ts.appendChild(chip(TOPS[k][0],TOPS[k][1],S.opt.top===k,()=>{ const b=snapshot(); S.opt.top=k; rebuild('desk'); commit(b); }));
+  const as=$('#artSw'); as.innerHTML='';
+  as.appendChild(chip('Sem quadro',null,S.opt.art==='none',()=>setOpt('art','none'),'txt'));
+  for(const k in ART) as.appendChild(chip(ART[k].name,`url(assets/quarto/${ART[k].thumb}) center/cover`,S.opt.art===k,()=>setOpt('art',k)));
+  const an=$('#artNote'); an.textContent=artInfo.msg; an.hidden=!artInfo.msg;
+  const bs=$('#blindSw'); bs.innerHTML='';
+  for(const [k,l] of [['aberta','Enrolada'],['meia','Meio'],['fechada','Baixada']]) bs.appendChild(chip(l,null,S.opt.blind===k,()=>setOpt('blind',k),'txt'));
   const tg=$('#toggles'); tg.innerHTML='';
   const T=[['Sofá aberto (cama)',()=>S.items.sofa.open,toggleOpen],
     ['Manta sobre o sofá',()=>S.opt.throw,()=>optToggle('throw',['sofa'])],
     ['Porta aberta',()=>S.opt.door,()=>optToggle('door')],
-    ['Cortina',()=>S.opt.curtain,()=>optToggle('curtain')],
     ['Objetos decorativos',()=>S.opt.decor,()=>optToggle('decor',['shelf','desk'])],
     ['Nomes na planta',()=>S.opt.labels,()=>optToggle('labels')],
     ['Ímã nas paredes',()=>S.opt.magnet,()=>optToggle('magnet')]];
@@ -953,6 +1014,7 @@ function renderPanel(){
     const b=document.createElement('button'); b.className='sw-t'+(get()?' on':''); b.setAttribute('aria-label',l); b.onclick=fn; r.appendChild(b); tg.appendChild(r);
   }
 }
+function setOpt(k,v){ const b=snapshot(); S.opt[k]=v; applyLook(); commit(b); }
 function optToggle(k,rb=[]){ const b=snapshot(); S.opt[k]=!S.opt[k]; rb.forEach(rebuild); applyLook(); commit(b); }
 function renderSel(){
   const box=$('#sel');
@@ -985,8 +1047,8 @@ function updateMeta(){
   let used=0; for(const id of ORDER){ const s=S.items[id]; if(!s.on||DEF[id].rug||DEF[id].wall||id==='chair') continue; const b=worldBox(id); used+=(b.x1-b.x0)*(b.z1-b.z0); }
   $('#meta').innerHTML=`${fmt(W)} × ${fmt(L)} m · pé-direito ${fmt(H)} m · ${fmt(W*L)} m² · piso livre <b>≈ ${fmt(W*L-used,1)} m²</b>`;
 }
-function refresh(){ updateSelVisuals(); renderSel(); renderPanel(); updateMeta(); }
-function light(){ updateSelVisuals(); renderSel(); updateMeta(); }
+function refresh(){ updateArt(); updateSelVisuals(); renderSel(); renderPanel(); updateMeta(); }
+function light(){ updateArt(); updateSelVisuals(); renderSel(); updateMeta(); }
 
 $('#sel .x').onclick=()=>select(null);
 $('#undoB').onclick=()=>{ if(!undoStack.length) return; restore(undoStack.pop()); save(); refresh(); };
@@ -1132,6 +1194,7 @@ function loop(){
   controls.update();
   const p=camera.position;
   M.sky.visible=controls.getPolarAngle()>.5;
+  artG.visible=artInfo.ok&&GW[artInfo.wall].visible;
   GW.A.visible=p.z>Z0-.02; GW.B.visible=p.z<Z1+.02; GW.C.visible=p.x>X0-.02; GW.D.visible=p.x<X1+.02;
   renderer.render(scene,camera);
   drawOverlay();
