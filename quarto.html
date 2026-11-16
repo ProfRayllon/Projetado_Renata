@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Quarto 3D — Planejador</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=Newsreader:ital,opsz,wght@1,6..72,400&display=swap" rel="stylesheet">
@@ -123,6 +123,25 @@ input.txt:focus{outline:none;border-color:var(--ink)}
   #brand{max-width:calc(100% - 150px)}
   #brand h1{font-size:24px}
   #sel{left:12px;bottom:66px;width:calc(100% - 24px)}
+}
+@media (max-width:600px){
+  #panel{left:8px;right:8px;top:auto;bottom:calc(8px + env(safe-area-inset-bottom));width:auto;max-height:68vh;max-height:68dvh;border-radius:16px;box-shadow:0 -8px 30px rgba(40,30,20,.18);padding:2px 16px calc(16px + env(safe-area-inset-bottom))}
+  #panelToggle{top:12px;right:10px;padding:8px 13px}
+  #brand{left:12px;top:12px;max-width:calc(100% - 130px)}
+  #rooms{margin-bottom:6px}
+  #rooms a{padding:6px 12px;font-size:12.5px}
+  #brand .eyebrow{display:none}
+  #brand h1{font-size:19px;margin:0 0 2px}
+  #brand .meta{font-size:11px}
+  #views{bottom:calc(12px + env(safe-area-inset-bottom))}
+  .seg button{padding:8px 12px}
+  #sel{bottom:calc(62px + env(safe-area-inset-bottom));padding:12px 14px;max-height:45vh;overflow-y:auto}
+  #sel h3{font-size:16px}
+  #walkPad{bottom:calc(62px + env(safe-area-inset-bottom));grid-template-columns:repeat(3,54px);grid-template-rows:repeat(2,54px)}
+  #sitBtn{bottom:calc(190px + env(safe-area-inset-bottom))}
+  #toast{top:auto;bottom:calc(64px + env(safe-area-inset-bottom))}
+  .it{grid-template-columns:36px 1fr auto}
+  .it img,.it .ph{width:36px;height:36px}
 }
 #rooms{display:inline-flex;pointer-events:auto;margin-bottom:12px}
 #rooms a{display:block;padding:7px 16px;border-radius:999px;font-size:13px;font-weight:500;color:var(--ink);text-decoration:none;white-space:nowrap}
@@ -672,8 +691,13 @@ function presetItems(key,keepFrom){
     if(keepFrom.guitarW.on){ it.guitarW={...keepFrom.guitarW}; it.guitar.on=false; } it.sofa.open=keepFrom.sofa.open; it.tv.yb=keepFrom.tv.yb; }
   return it;
 }
-function freshState(){ return {items:presetItems('atual'),walls:{A:WHITE,B:WHITE,C:WHITE,D:WHITE},
-  opt:{fabric:'bege',top:'freijo',throw:true,door:true,blind:'meia',art:'vintage',panel:'freijo',panelW:1.2,panelB:0,panelH:2.45,decor:true,labels:true,magnet:true}}; }
+// layout que abre por padrão (montado e aprovado no planejador)
+const DEFAULT_ITEMS={sofa:{on:true,open:false,x:-.775,z:-.149,r:1},tv:{on:true,wall:'D',s:-.035,yb:1.02},desk:{on:true,x:.64,z:-1.375,r:0},
+  chair:{on:true,x:.67,z:-1.21,r:2},shelf:{on:true,x:.5,z:1.48,r:2},tables:{on:false,x:-.935,z:-1.43,r:0},speaker:{on:false,x:1.065,z:1.075,r:3},
+  guitar:{on:false,x:1.085,z:-.055,r:3},guitarW:{on:false,wall:'D',s:.9,yb:.92},rug:{on:true,x:.525,z:-.085,r:0},plant:{on:false,x:-.435,z:-1.391,r:0}};
+function freshState(){ const items=baseItems(); for(const id in DEFAULT_ITEMS) Object.assign(items[id],DEFAULT_ITEMS[id]);
+  return {items,walls:{A:'#aebb98',B:WHITE,C:WHITE,D:'#aebb98'},
+  opt:{fabric:'bege',top:'freijo',throw:true,door:true,blind:'fechada',art:'none',panel:'none',panelW:1.55,panelB:.1,panelH:2.45,decor:true,labels:true,magnet:true}}; }
 let S=freshState(), sel=null, wallTarget='all';
 
 // ---------- geometry of placement ----------
@@ -989,7 +1013,7 @@ function drawOverlay(){
 
 // ---------- persistence ----------
 const LS={get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }};
-const KEY='quarto:v1:atual', SAVED='quarto:v1:salvos';
+const KEY='quarto:v2:atual', SAVED='quarto:v1:salvos';
 const snapshot=()=>JSON.stringify(S);
 function sanitize(o){
   const s=freshState(); if(!o||typeof o!=='object') return s;
@@ -1087,7 +1111,7 @@ function setWall(k,color){
   const before=snapshot();
   const keys=k==='all'?[...'ABCD']:[k]; keys.forEach(w=>S.walls[w]=color); applyLook(); commit(before);
 }
-function setWallTarget(k,fromClick){ wallTarget=k; refresh(); if(fromClick){ toast(`${WALLS[k].name} selecionada — escolha a cor no painel.`); if(innerWidth<=860) $('#panel').classList.add('open'); } }
+function setWallTarget(k,fromClick){ wallTarget=k; refresh(); if(fromClick){ toast(`${WALLS[k].name} selecionada — escolha a cor no painel.`); if(innerWidth<=860) setPanel(true); } }
 
 function chip(label,color,on,fn,cls=''){
   const b=document.createElement('button'); b.className='chip '+cls+(on?' on':'');
@@ -1223,7 +1247,7 @@ function light(){ updatePanel(); updateArt(); updateSelVisuals(); renderSel(); u
 
 $('#sel .x').onclick=()=>select(null);
 $('#undoB').onclick=()=>{ if(!undoStack.length) return; restore(undoStack.pop()); save(); refresh(); };
-$('#resetB').onclick=()=>{ const b=snapshot(); S=freshState(); rebuildAll(); sel=null; wallTarget='all'; commit(b); toast('Voltamos ao quarto como está hoje, com paredes brancas.'); };
+$('#resetB').onclick=()=>{ const b=snapshot(); S=freshState(); rebuildAll(); sel=null; wallTarget='all'; commit(b); toast('Voltamos ao layout padrão.'); };
 $('#saveB').onclick=()=>{
   const n=$('#saveName').value.trim()||`Layout ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
   let saved=[]; try{ saved=JSON.parse(LS.get(SAVED)||'[]'); }catch(e){}
@@ -1235,16 +1259,23 @@ $('#shareB').onclick=async()=>{
   try{ await navigator.clipboard.writeText(url); toast('Link copiado — quem abrir vê exatamente este layout.'); }
   catch(e){ history.replaceState(null,'','#l='+enc(compact())); toast('Copie o endereço da barra do navegador para compartilhar.'); }
 };
-$('#panelToggle').onclick=()=>$('#panel').classList.toggle('open');
+const setPanel=o=>{ $('#panel').classList.toggle('open',o); $('#panelToggle').textContent=o?'Fechar':'Personalizar'; };
+$('#panelToggle').onclick=()=>setPanel(!$('#panel').classList.contains('open'));
+canvas.addEventListener('pointerdown',()=>{ if(innerWidth<=860&&$('#panel').classList.contains('open')) setPanel(false); });
 
 // ---------- views ----------
-function viewDef(v){
+function viewDef(v){ const d=viewDef0(v), a=camera.aspect;
+  if(a>=1.2||v==='planta') return d;
+  if(v==='persp'){ const k=Math.min(2.2,1.1/a), [p,t]=d; return [p.map((c,i)=>t[i]+(c-t[i])*k),t,d[2]]; }
+  const f=d[2]||46, h=Math.tan(f*Math.PI/360)*1.2/a; return [d[0],d[1],Math.min(80,Math.atan(h)*360/Math.PI)];
+}
+function viewDef0(v){
   switch(v){
     case 'planta':{ const t=Math.tan(11*Math.PI/180), a=camera.aspect, d=Math.max((L+.9)/2/t,(W+.9)/2/(t*a)); return [[0,d,.02],[0,0,0],22]; }
     case 'entrada': return [[(DOOR.x0+DOOR.x1)/2+.15,1.6,2.6],[.15,.85,-1.1]];
     case 'janela': return [[.2,1.5,1.55],[-.2,1.15,-1.64]];
     case 'sofa':{
-      const st=S.items.sofa; if(!st.on) return viewDef('persp');
+      const st=S.items.sofa; if(!st.on) return viewDef0('persp');
       const p=pose('sofa',st), f=V(Math.sin(p.r*Math.PI/2),0,Math.cos(p.r*Math.PI/2));
       return [[p.x-f.x*.12,1.15,p.z-f.z*.12],[p.x+f.x*2.6,1.0,p.z+f.z*2.6]];
     }
